@@ -21,4 +21,4 @@ echo "Lean dev mode:"
 echo "  CARGO_TARGET_DIR=$LEAN_TARGET_DIR"
 echo "  Cleanup on exit: enabled"
 
-CARGO_TARGET_DIR="$LEAN_TARGET_DIR" pnpm tauri dev "$@"
+CARGO_TARGET_DIR="$LEAN_TARGET_DIR" pnpm -C apps/desktop/ui tauri dev "$@"

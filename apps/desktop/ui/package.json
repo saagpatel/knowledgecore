@@ -10,7 +10,7 @@
     "tauri": "node scripts/tauri-cli.mjs"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.9.3",
+    "@tauri-apps/cli": "^2.10.1",
     "@typescript-eslint/eslint-plugin": "^8.46.3",
     "@typescript-eslint/parser": "^8.46.3",
     "eslint": "^10.0.0",

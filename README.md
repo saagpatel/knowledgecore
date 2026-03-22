@@ -4,8 +4,8 @@
 
 The canonical workspace commands are defined in:
 
-- `package.json` scripts (`pnpm dev`, `pnpm dev:lean`, `pnpm lint`, `pnpm test`, `pnpm tauri`)
-- `.github/workflows/ci.yml` (`pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm test`, `pnpm -C apps/desktop/ui build`, Rust checks)
+- `apps/desktop/ui/package.json` scripts (`pnpm -C apps/desktop/ui lint`, `pnpm -C apps/desktop/ui test`, `pnpm -C apps/desktop/ui tauri`)
+- `.github/workflows/ci.yml` (`pnpm install --frozen-lockfile`, `pnpm -C apps/desktop/ui lint`, `pnpm -C apps/desktop/ui test`, `pnpm -C apps/desktop/ui build`, Rust checks)
 
 ## Normal Dev
 
@@ -15,10 +15,16 @@ Install dependencies:
 pnpm install --frozen-lockfile
 ```
 
+Install UI dependencies:
+
+```bash
+pnpm -C apps/desktop/ui install --frozen-lockfile
+```
+
 Start desktop app (normal mode):
 
 ```bash
-pnpm dev
+pnpm -C apps/desktop/ui tauri dev
 ```
 
 ## Lean Dev (Low Disk)
@@ -26,13 +32,13 @@ pnpm dev
 Start desktop app in lean mode:
 
 ```bash
-pnpm dev:lean
+bash ./scripts/run-dev-lean.sh
 ```
 
 What lean mode changes:
 
 - uses a temporary `CARGO_TARGET_DIR` outside the repo for Rust build artifacts
-- starts the app with the same canonical command path (`pnpm tauri dev`)
+- starts the app with the same canonical command path (`pnpm -C apps/desktop/ui tauri dev`)
 - automatically removes heavy build artifacts when the app exits
 
 Tradeoff:

@@ -1,5 +1,5 @@
-# Replace these commands with your repo's canonical checks.
-# Keep order strict: fast static checks first, then behavioral, then docs drift.
-npm run lint
-npm run test
-npm run docs:check
+pnpm -C apps/desktop/ui lint
+pnpm -C apps/desktop/ui test
+pnpm -C apps/desktop/ui build
+cargo fmt --all -- --check
+cargo test --workspace --exclude apps_desktop_tauri

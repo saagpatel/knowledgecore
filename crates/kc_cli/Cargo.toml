@@ -10,7 +10,7 @@ kc_ask = { path = "../kc_ask" }
 kc_core = { path = "../kc_core" }
 kc_extract = { path = "../kc_extract" }
 kc_index = { path = "../kc_index" }
-jsonschema = "0.42"
+jsonschema = "0.45"
 serde.workspace = true
 serde_json.workspace = true
 walkdir = "2.5"

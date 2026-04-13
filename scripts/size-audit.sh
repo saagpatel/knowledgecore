@@ -108,4 +108,4 @@ print_rows "Largest Files (>10MB)" "$large_files"
 
 echo
 echo "Suggested cleanup command:"
-echo "  bash ./scripts/clean-local.sh --dry-run"
+echo "  bash ./scripts/clean-heavy-artifacts.sh --dry-run"

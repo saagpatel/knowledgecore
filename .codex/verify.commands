@@ -1,5 +1,20 @@
+pnpm install --frozen-lockfile --ignore-scripts
+bash scripts/git/guard-branch.sh
+bash scripts/git/guard-atomic.sh
+bash scripts/git/guard-generated.sh
+bash scripts/git/guard-large-files.sh
+bash scripts/git/guard-secrets.sh
 pnpm -C apps/desktop/ui lint
+pnpm -C apps/desktop/ui typecheck
 pnpm -C apps/desktop/ui test
+node scripts/ci/require-tests-and-docs.mjs
 pnpm -C apps/desktop/ui build
 cargo fmt --all -- --check
 cargo test --workspace --exclude apps_desktop_tauri
+node scripts/perf/bundle-report.mjs
+node scripts/perf/compare-metric.mjs .perf-baselines/bundle.json .perf-results/bundle.json totalBytes 0.08
+node scripts/perf/measure-build-time.mjs pnpm -C apps/desktop/ui build
+node scripts/perf/compare-metric.mjs .perf-baselines/build-time.json .perf-results/build-time.json buildMs 0.15
+bash scripts/perf/check-assets.sh
+node --expose-gc scripts/perf/memory-smoke.mjs
+node scripts/perf/summarize.mjs

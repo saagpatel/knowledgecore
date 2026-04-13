@@ -1,5 +1,14 @@
 ## Definition of Done: Tests + Docs (Blocking)
 
+<!-- comm-contract:start -->
+## Communication Contract (Global)
+- Follow `/Users/d/.codex/policies/communication/BigPictureReportingV1.md` for all user-facing updates.
+- Use exact section labels from `BigPictureReportingV1.md` for default status/progress updates.
+- Keep default updates beginner-friendly, big-picture, and low-noise.
+- Keep technical details in internal artifacts unless explicitly requested by the user.
+- Honor toggles literally: `simple mode`, `show receipts`, `tech mode`, `debug mode`.
+<!-- comm-contract:end -->
+
 - Any production code change must include meaningful test updates in the same PR.
 - Meaningful tests must include at least:
   - one primary behavior assertion

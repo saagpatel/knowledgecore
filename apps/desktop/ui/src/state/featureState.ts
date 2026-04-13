@@ -19,6 +19,7 @@ export function initializeFeatureStates(): Record<AppRoute, FeatureState> {
     export: { route: "export", status: "idle" },
     verify: { route: "verify", status: "idle" },
     events: { route: "events", status: "idle" },
-    settings: { route: "settings", status: "idle" }
+    settings: { route: "settings", status: "idle" },
+    lineage: { route: "lineage", status: "idle" }
   };
 }

@@ -1,99 +1,104 @@
 {
   "metadata": {
     "owner": "engineering",
-    "updated_on": "2026-02-15",
+    "updated_on": "2026-04-26",
     "max_review_window_days": 45
   },
   "allow": [
     {
       "id": "RUSTSEC-2024-0413",
-      "review_by": "2026-03-31",
+      "review_by": "2026-06-09",
       "reason": "gtk3 stack is transitively pulled by tauri runtime chain."
     },
     {
       "id": "RUSTSEC-2024-0416",
-      "review_by": "2026-03-31",
+      "review_by": "2026-06-09",
       "reason": "gtk3 stack is transitively pulled by tauri runtime chain."
     },
     {
       "id": "RUSTSEC-2025-0057",
-      "review_by": "2026-03-31",
+      "review_by": "2026-06-09",
       "reason": "transitive via lancedb/tantivy; requires upstream migration plan."
     },
     {
       "id": "RUSTSEC-2024-0412",
-      "review_by": "2026-03-31",
+      "review_by": "2026-06-09",
       "reason": "gtk3 stack is transitively pulled by tauri runtime chain."
     },
     {
       "id": "RUSTSEC-2024-0418",
-      "review_by": "2026-03-31",
+      "review_by": "2026-06-09",
       "reason": "gtk3 stack is transitively pulled by tauri runtime chain."
     },
     {
       "id": "RUSTSEC-2024-0411",
-      "review_by": "2026-03-31",
+      "review_by": "2026-06-09",
       "reason": "gtk3 stack is transitively pulled by tauri runtime chain."
     },
     {
       "id": "RUSTSEC-2024-0415",
-      "review_by": "2026-03-31",
+      "review_by": "2026-06-09",
       "reason": "gtk3 stack is transitively pulled by tauri runtime chain."
     },
     {
       "id": "RUSTSEC-2024-0420",
-      "review_by": "2026-03-31",
+      "review_by": "2026-06-09",
       "reason": "gtk3 stack is transitively pulled by tauri runtime chain."
     },
     {
       "id": "RUSTSEC-2024-0419",
-      "review_by": "2026-03-31",
+      "review_by": "2026-06-09",
       "reason": "gtk3 stack is transitively pulled by tauri runtime chain."
     },
     {
       "id": "RUSTSEC-2024-0436",
-      "review_by": "2026-03-31",
+      "review_by": "2026-06-09",
       "reason": "transitive macro dependency; replace during toolchain refresh."
     },
     {
       "id": "RUSTSEC-2024-0370",
-      "review_by": "2026-03-31",
+      "review_by": "2026-06-09",
       "reason": "transitive macro dependency; replace during toolchain refresh."
     },
     {
       "id": "RUSTSEC-2025-0081",
-      "review_by": "2026-03-31",
+      "review_by": "2026-06-09",
       "reason": "transitive unicode crate via tauri/urlpattern chain."
     },
     {
       "id": "RUSTSEC-2025-0075",
-      "review_by": "2026-03-31",
+      "review_by": "2026-06-09",
       "reason": "transitive unicode crate via tauri/urlpattern chain."
     },
     {
       "id": "RUSTSEC-2025-0080",
-      "review_by": "2026-03-31",
+      "review_by": "2026-06-09",
       "reason": "transitive unicode crate via tauri/urlpattern chain."
     },
     {
       "id": "RUSTSEC-2025-0100",
-      "review_by": "2026-03-31",
+      "review_by": "2026-06-09",
       "reason": "transitive unicode crate via tauri/urlpattern chain."
     },
     {
       "id": "RUSTSEC-2025-0098",
-      "review_by": "2026-03-31",
+      "review_by": "2026-06-09",
       "reason": "transitive unicode crate via tauri/urlpattern chain."
     },
     {
       "id": "RUSTSEC-2024-0429",
-      "review_by": "2026-03-31",
+      "review_by": "2026-06-09",
       "reason": "unsound glib in gtk3 transitives; prioritize tauri/linux backend migration."
     },
     {
       "id": "RUSTSEC-2026-0002",
-      "review_by": "2026-03-31",
+      "review_by": "2026-06-09",
       "reason": "unsound lru transitively pulled by tantivy/lancedb; prioritize upstream upgrade."
+    },
+    {
+      "id": "RUSTSEC-2026-0097",
+      "review_by": "2026-06-09",
+      "reason": "rand is pulled transitively by parser/indexing stacks; replace through upstream dependency refresh."
     }
   ]
 }

@@ -112,6 +112,64 @@ function mockApi(): DesktopRpcApi {
           }
         ]
       }),
+    trustProviderAdd: () =>
+      ok({
+        provider_id: "default",
+        issuer: "https://default.oidc.knowledgecore.local",
+        audience: "kc-desktop:default",
+        jwks_url: "https://default.oidc.knowledgecore.local/.well-known/jwks.json",
+        enabled: true,
+        created_at_ms: 42,
+        updated_at_ms: 42
+      }),
+    trustProviderDisable: () =>
+      ok({
+        provider_id: "default",
+        issuer: "https://default.oidc.knowledgecore.local",
+        audience: "kc-desktop:default",
+        jwks_url: "https://default.oidc.knowledgecore.local/.well-known/jwks.json",
+        enabled: false,
+        created_at_ms: 42,
+        updated_at_ms: 43
+      }),
+    trustProviderList: () =>
+      ok({
+        providers: [
+          {
+            provider_id: "default",
+            issuer: "https://default.oidc.knowledgecore.local",
+            audience: "kc-desktop:default",
+            jwks_url: "https://default.oidc.knowledgecore.local/.well-known/jwks.json",
+            enabled: true,
+            created_at_ms: 42,
+            updated_at_ms: 42
+          }
+        ]
+      }),
+    trustProviderDiscover: () =>
+      ok({
+        provider_id: "default",
+        issuer: "https://default.oidc.knowledgecore.local",
+        audience: "kc-desktop:default",
+        jwks_url: "https://default.oidc.knowledgecore.local/.well-known/jwks.json",
+        enabled: true,
+        created_at_ms: 42,
+        updated_at_ms: 42
+      }),
+    trustPolicySet: () =>
+      ok({
+        provider_id: "default",
+        max_clock_skew_ms: 300000,
+        require_claims_json: "{\"tenant\":\"demo\"}",
+        updated_at_ms: 44
+      }),
+    trustPolicySetTenantTemplate: () =>
+      ok({
+        provider_id: "default",
+        max_clock_skew_ms: 300000,
+        require_claims_json: "{\"tenant\":\"demo\"}",
+        updated_at_ms: 45
+      }),
     vaultLockStatus: () =>
       ok({
         db_encryption_enabled: true,

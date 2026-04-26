@@ -1,7 +1,7 @@
 use crate::embedding::{Embedder, EmbeddingIdentity};
 use arrow_array::{
     types::Float32Type, Array, FixedSizeListArray, Float32Array, Int64Array, RecordBatch,
-    RecordBatchIterator, StringArray,
+    RecordBatchIterator, RecordBatchReader, StringArray,
 };
 use arrow_schema::{DataType, Field, Schema};
 use futures::TryStreamExt;
@@ -240,7 +240,10 @@ impl<E: Embedder> LanceDbVectorIndex<E> {
             )
         })?;
 
-        let batches = RecordBatchIterator::new(vec![Ok(batch)].into_iter(), schema);
+        let batches: Box<dyn RecordBatchReader + Send> = Box::new(RecordBatchIterator::new(
+            vec![Ok(batch)].into_iter(),
+            schema,
+        ));
         let db_uri = self.db_root.to_string_lossy().to_string();
 
         with_rt(async {
@@ -249,9 +252,7 @@ impl<E: Embedder> LanceDbVectorIndex<E> {
             if table_names.iter().any(|n| n == TABLE_NAME) {
                 db.drop_table(TABLE_NAME, &[]).await?;
             }
-            db.create_table(TABLE_NAME, Box::new(batches))
-                .execute()
-                .await?;
+            db.create_table(TABLE_NAME, batches).execute().await?;
             Ok(())
         })
     }

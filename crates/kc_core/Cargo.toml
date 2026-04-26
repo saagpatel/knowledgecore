@@ -6,9 +6,9 @@ license.workspace = true
 
 [dependencies]
 aws-config = "1.8"
-aws-sdk-kms = "1.100"
-aws-sdk-s3 = "1.115"
-aws-sdk-secretsmanager = "1.100"
+aws-sdk-kms = { version = "1.100", default-features = false, features = ["default-https-client", "rt-tokio"] }
+aws-sdk-s3 = { version = "1.115", default-features = false, features = ["default-https-client", "http-1x", "rt-tokio", "sigv4a"] }
+aws-sdk-secretsmanager = { version = "1.100", default-features = false, features = ["default-https-client", "rt-tokio"] }
 argon2 = "0.5"
 blake3.workspace = true
 chacha20poly1305 = "0.10"

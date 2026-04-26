@@ -3,7 +3,6 @@
 
 # Rust
 **/target/
-Cargo.lock
 
 # Node / Tauri
 **/node_modules/
@@ -24,3 +23,4 @@ Cargo.lock
 
 # Local audit workspace
 .codex_audit/
+.perf-results/

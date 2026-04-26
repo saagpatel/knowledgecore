@@ -38,14 +38,24 @@ try {
   });
   auditJson = JSON.parse(raw);
 } catch (error) {
-  fail(`failed to execute cargo audit --json (${error.message})`);
+  const stdout = error?.stdout?.toString?.() || "";
+  if (!stdout.trim()) {
+    fail(`failed to execute cargo audit --json (${error.message})`);
+  }
+  try {
+    auditJson = JSON.parse(stdout);
+  } catch (parseError) {
+    fail(`failed to parse cargo audit --json output (${parseError.message})`);
+  }
 }
 
 const vulnerabilities = auditJson?.vulnerabilities?.list || [];
 if (vulnerabilities.length > 0) {
   console.error("audit-rust: vulnerabilities are not allowed.");
   for (const v of vulnerabilities) {
-    console.error(`  - ${v.id} ${v.package?.name || ""} ${v.package?.version || ""}`);
+    console.error(
+      `  - ${v.advisory?.id || "unknown-advisory"} ${v.package?.name || ""} ${v.package?.version || ""}`
+    );
   }
   process.exit(1);
 }

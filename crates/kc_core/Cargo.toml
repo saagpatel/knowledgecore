@@ -26,7 +26,7 @@ zip = { version = "8.0", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 criterion = "0.8"
-jsonschema = "0.42"
+jsonschema = "0.46"
 tempfile = "3.23"
 
 [[bench]]

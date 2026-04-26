@@ -51,6 +51,14 @@ KnowledgeCore launch closeout completed with a controlled pilot release (`v0.1.0
 - Project status: `Closed for pilot launch track`
 - GA completion status: `Open follow-up (credential-dependent)`
 
+## Current Baseline Addendum (2026-04-26)
+- Canonical branch is now `main` aligned with `origin/main`; older `master` evidence below is historical.
+- Current verified head after dependency stabilization: `3f23f3b`.
+- Open PR queue: empty.
+- GitHub `main` CI and Security Audit passed for `3f23f3b`.
+- Current dependency/security verification details are captured in `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/18-post-stabilization-baseline-2026-04-26.md`.
+- GA trust-compliance gap remains open and credential-dependent.
+
 ## Final Consolidation Evidence (Post-C6)
 Command source references:
 - `/Users/d/Projects/knowledgecore/knowledgecore-docpack/AGENTS.md`

@@ -56,6 +56,7 @@ KnowledgeCore launch closeout completed with a controlled pilot release (`v0.1.0
 - Current verified head after dependency stabilization: `3f23f3b`.
 - Open PR queue: empty.
 - GitHub `main` CI and Security Audit passed for `3f23f3b`.
+- Historical remote `master` was archived to `origin/archive/master-before-main-canonical-2026-04-26` at `915c506`; `origin/master` is no longer active.
 - Current dependency/security verification details are captured in `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/18-post-stabilization-baseline-2026-04-26.md`.
 - GA trust-compliance gap remains open and credential-dependent.
 

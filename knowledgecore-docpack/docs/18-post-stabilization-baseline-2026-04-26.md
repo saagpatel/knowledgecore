@@ -11,6 +11,7 @@ Capture the current repo baseline after the April 26 dependency stabilization pa
 - Local checkout: clean before recording this baseline document.
 - GitHub `main` CI: PASS for `3f23f3b`.
 - GitHub `main` Security Audit: PASS for `3f23f3b`.
+- Remote `master` was archived to `origin/archive/master-before-main-canonical-2026-04-26` at `915c506` and removed from `origin`.
 
 ## Dependency Outcome
 - Safe JavaScript dependency PRs were merged for Vite, Vitest, TypeScript, ESLint, and TypeScript ESLint packages.
@@ -35,6 +36,6 @@ Capture the current repo baseline after the April 26 dependency stabilization pa
 
 ## Remaining Follow-Ups
 - GA remains blocked by the existing signing/notarization trust gap documented in the GA closeout files.
-- Local `master` is stale and still configured against `origin/main`; keep `main` canonical and clean this separately if branch hygiene becomes the next task.
+- The separate `legacy-origin` remote still has its historical `master`; keep `origin/main` canonical for active work.
 - Keep RustSec policy review dates current; current entries review by `2026-06-09`.
 - Treat future Arrow-family updates as coordinated stack work, not standalone crate bumps.

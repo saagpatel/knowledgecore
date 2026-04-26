@@ -12,5 +12,5 @@ serde_json.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
-jsonschema = "0.42"
+jsonschema = "0.46"
 tempfile = "3.23"

@@ -16,4 +16,4 @@ tauri = { version = "2.10.2", default-features = false, features = ["custom-prot
 tempfile = "3.23"
 
 [build-dependencies]
-tauri-build = { version = "2.5.5", features = [] }
+tauri-build = { version = "2.6.1", features = [] }

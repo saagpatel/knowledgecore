@@ -13,7 +13,7 @@ KnowledgeCore is a local-first, encrypted knowledge vault for ingesting, indexin
 - **Content addressing** — BLAKE3 hashes ensure integrity and deduplication
 - **PDF extraction** — pdfium-render for high-fidelity document parsing
 - **CLI + desktop** — full-featured `kc_cli` plus a Tauri 2 desktop app covering the same workflow
-- **Recovery escrow** — pluggable escrow backends: AWS KMS, Azure, GCP, HSM, or local
+- **Recovery escrow** — AWS KMS backend (real SDK); Azure, GCP, and HSM adapters use local filesystem emulation only (no cloud SDK)
 
 ## Quick Start
 

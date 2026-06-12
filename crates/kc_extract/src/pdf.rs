@@ -10,6 +10,7 @@ pub struct PdfExtractOutput {
     pub text_with_page_markers: String,
     pub extracted_len: usize,
     pub extracted_alnum_ratio: f64,
+    pub page_count: Option<u32>,
 }
 
 fn alnum_ratio(content: &str) -> f64 {
@@ -51,7 +52,7 @@ fn bind_pdfium(cfg: &PdfiumConfig) -> AppResult<Pdfium> {
     Ok(Pdfium::new(bindings))
 }
 
-fn extract_pdf_via_pdfium(pdf_bytes: &[u8], cfg: &PdfiumConfig) -> AppResult<String> {
+fn extract_pdf_via_pdfium(pdf_bytes: &[u8], cfg: &PdfiumConfig) -> AppResult<(String, u32)> {
     let pdfium = bind_pdfium(cfg)?;
     let doc = pdfium
         .load_pdf_from_byte_vec(pdf_bytes.to_vec(), None)
@@ -65,6 +66,7 @@ fn extract_pdf_via_pdfium(pdf_bytes: &[u8], cfg: &PdfiumConfig) -> AppResult<Str
             )
         })?;
 
+    let page_count = doc.pages().len() as u32;
     let mut output = String::new();
     for (idx, page) in doc.pages().iter().enumerate() {
         let page_text = page
@@ -96,11 +98,11 @@ fn extract_pdf_via_pdfium(pdf_bytes: &[u8], cfg: &PdfiumConfig) -> AppResult<Str
         output = format!("{}\n", page_marker(1));
     }
 
-    Ok(output)
+    Ok((output, page_count))
 }
 
 pub fn extract_pdf_text(pdf_bytes: &[u8], cfg: &PdfiumConfig) -> AppResult<PdfExtractOutput> {
-    let text = if pdf_bytes.starts_with(b"%PDF") {
+    let (text, page_count) = if pdf_bytes.starts_with(b"%PDF") {
         extract_pdf_via_pdfium(pdf_bytes, cfg)?
     } else {
         let decoded = String::from_utf8(pdf_bytes.to_vec()).map_err(|e| {
@@ -112,7 +114,7 @@ pub fn extract_pdf_text(pdf_bytes: &[u8], cfg: &PdfiumConfig) -> AppResult<PdfEx
                 serde_json::json!({ "error": e.to_string() }),
             )
         })?;
-        format!("{}\n{}", page_marker(1), decoded)
+        (format!("{}\n{}", page_marker(1), decoded), 1u32)
     };
 
     let ratio = alnum_ratio(&text);
@@ -121,5 +123,6 @@ pub fn extract_pdf_text(pdf_bytes: &[u8], cfg: &PdfiumConfig) -> AppResult<PdfEx
         extracted_len: text.len(),
         extracted_alnum_ratio: ratio,
         text_with_page_markers: text,
+        page_count: Some(page_count),
     })
 }

@@ -234,6 +234,7 @@ mod tests {
                 extractor_flags_json: "{}".to_string(),
                 normalization_version: 1,
                 toolchain_json: "{}".to_string(),
+                page_count: None,
             },
             1,
         )

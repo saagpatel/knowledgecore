@@ -26,6 +26,7 @@ impl ExtractService for DefaultExtractor {
         let mut ocr_used = false;
         let mut ocr_status = "not_attempted".to_string();
         let ocr_language = "eng".to_string();
+        let mut page_count: Option<u32> = None;
         let raw = match input.mime {
             "text/markdown" => {
                 let text = String::from_utf8(input.bytes.to_vec()).map_err(|e| {
@@ -69,6 +70,7 @@ impl ExtractService for DefaultExtractor {
                         Err(err) => return Err(err),
                     }
                 } else {
+                    page_count = pdf.page_count;
                     pdf.text_with_page_markers
                 }
             }
@@ -125,6 +127,7 @@ impl ExtractService for DefaultExtractor {
             extractor_flags_json,
             normalization_version: 1,
             toolchain_json,
+            page_count,
         })
     }
 }

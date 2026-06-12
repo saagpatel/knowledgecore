@@ -34,6 +34,7 @@ fn canonical_persist_round_trip() {
         extractor_flags_json: "{}".to_string(),
         normalization_version: 1,
         toolchain_json: "{}".to_string(),
+        page_count: None,
     };
 
     persist_canonical_text(&conn, &store, &artifact, 2).expect("persist");
@@ -72,6 +73,7 @@ fn canonical_persist_rejects_hash_mismatch() {
         extractor_flags_json: "{}".to_string(),
         normalization_version: 1,
         toolchain_json: "{}".to_string(),
+        page_count: None,
     };
 
     let err = persist_canonical_text(&conn, &store, &artifact, 2).expect_err("must fail invariant");

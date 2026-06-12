@@ -19,6 +19,7 @@ pub struct CanonicalTextArtifact {
     pub extractor_flags_json: String,
     pub normalization_version: i64,
     pub toolchain_json: String,
+    pub page_count: Option<u32>,
 }
 
 #[derive(Debug, Clone)]

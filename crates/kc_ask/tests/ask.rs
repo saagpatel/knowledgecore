@@ -127,6 +127,7 @@ fn ask_runs_retrieved_only_end_to_end() {
         extractor_flags_json: "{}".to_string(),
         normalization_version: 1,
         toolchain_json: "{}".to_string(),
+        page_count: None,
     };
     persist_canonical_text(&conn, &store, &artifact, 1).expect("persist canonical");
 

@@ -214,6 +214,24 @@ pub fn trust_device_list(conn: &Connection) -> AppResult<Vec<TrustedDeviceRecord
     Ok(out)
 }
 
+pub fn trusted_device_public_key(conn: &Connection, device_id: &str) -> AppResult<String> {
+    let Some(device) = load_device(conn, device_id)? else {
+        return Err(trust_error(
+            "KC_TRUST_DEVICE_UNVERIFIED",
+            "device is not present in trust registry",
+            serde_json::json!({ "device_id": device_id }),
+        ));
+    };
+    if device.verified_at_ms.is_none() {
+        return Err(trust_error(
+            "KC_TRUST_DEVICE_UNVERIFIED",
+            "device is not verified",
+            serde_json::json!({ "device_id": device_id }),
+        ));
+    }
+    Ok(device.pubkey)
+}
+
 pub fn trust_device_verify(
     conn: &Connection,
     device_id: &str,

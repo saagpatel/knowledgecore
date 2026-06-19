@@ -26,6 +26,12 @@ pub struct VectorRow {
     pub vector: Vec<f32>,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct VectorResourceLimits {
+    pub max_rows: usize,
+    pub max_text_bytes_per_row: usize,
+}
+
 pub struct LanceDbVectorIndex<E: Embedder> {
     embedder: E,
     db_root: PathBuf,
@@ -103,7 +109,46 @@ impl<E: Embedder> LanceDbVectorIndex<E> {
         Ok(instance)
     }
 
-    pub fn upsert_rows(&mut self, mut rows: Vec<VectorRow>) -> AppResult<()> {
+    pub fn upsert_rows(&mut self, rows: Vec<VectorRow>) -> AppResult<()> {
+        self.upsert_rows_with_limits(rows, None)
+    }
+
+    pub fn upsert_rows_with_limits(
+        &mut self,
+        mut rows: Vec<VectorRow>,
+        limits: Option<VectorResourceLimits>,
+    ) -> AppResult<()> {
+        if let Some(limits) = limits {
+            if rows.len() > limits.max_rows {
+                return Err(AppError::new(
+                    "KC_RESOURCE_LIMIT_EXCEEDED",
+                    "vector",
+                    "vector rows exceed configured row limit",
+                    false,
+                    serde_json::json!({
+                        "rows": rows.len(),
+                        "max_rows": limits.max_rows,
+                    }),
+                ));
+            }
+            if let Some(row) = rows
+                .iter()
+                .find(|row| row.text.len() > limits.max_text_bytes_per_row)
+            {
+                return Err(AppError::new(
+                    "KC_RESOURCE_LIMIT_EXCEEDED",
+                    "vector",
+                    "vector row text exceeds configured byte limit",
+                    false,
+                    serde_json::json!({
+                        "chunk_id": row.chunk_id.0,
+                        "bytes": row.text.len(),
+                        "max_text_bytes_per_row": limits.max_text_bytes_per_row,
+                    }),
+                ));
+            }
+        }
+
         for row in &rows {
             if row.vector.len() != self.identity.dims {
                 return Err(AppError::new(

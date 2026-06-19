@@ -21,6 +21,7 @@ pub mod recovery_escrow_gcp;
 pub mod recovery_escrow_hsm;
 pub mod recovery_escrow_local;
 pub mod recovery_escrow_private_kms;
+pub mod resource_limits;
 pub mod retrieval;
 pub mod rpc_service;
 pub mod services;

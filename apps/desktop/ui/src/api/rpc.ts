@@ -190,6 +190,7 @@ export type VaultLockStatusRes = {
   unlocked: boolean;
   mode: string;
   key_reference: string | null;
+  state: string;
 };
 export type VaultUnlockReq = { vault_path: string; passphrase: string };
 export type VaultUnlockRes = { status: VaultLockStatusRes };

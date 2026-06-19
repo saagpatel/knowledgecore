@@ -287,6 +287,7 @@ pub struct VaultLockStatusRes {
     pub unlocked: bool,
     pub mode: String,
     pub key_reference: Option<String>,
+    pub state: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1337,6 +1338,7 @@ fn map_lock_status(status: kc_core::rpc_service::VaultDbLockStatus) -> VaultLock
         unlocked: status.unlocked,
         mode: status.mode,
         key_reference: status.key_reference,
+        state: status.state,
     }
 }
 

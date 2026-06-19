@@ -2,11 +2,12 @@ use kc_core::app_error::{AppError, AppResult};
 use kc_core::canonical::load_canonical_text;
 use kc_core::db::open_db;
 use kc_core::object_store::ObjectStore;
+use kc_core::resource_limits::{VECTOR_REBUILD_MAX_ROWS, VECTOR_ROW_MAX_TEXT_BYTES};
 use kc_core::types::{ChunkId, DocId};
 use kc_core::vault::{vault_open, vault_paths};
 use kc_index::embedding::{Embedder, EmbeddingIdentity};
 use kc_index::fts::{rebuild_rows, FtsRow};
-use kc_index::vector::{LanceDbVectorIndex, VectorRow};
+use kc_index::vector::{LanceDbVectorIndex, VectorResourceLimits, VectorRow};
 use std::path::Path;
 
 struct DeterministicEmbedder;
@@ -181,7 +182,13 @@ pub fn run_rebuild(vault_path: &str) -> AppResult<()> {
 
     let vectors_path = paths.vectors_dir.join("lancedb-v1");
     let mut vector_index = LanceDbVectorIndex::open(embedder, vectors_path)?;
-    vector_index.upsert_rows(vector_rows)?;
+    vector_index.upsert_rows_with_limits(
+        vector_rows,
+        Some(VectorResourceLimits {
+            max_rows: VECTOR_REBUILD_MAX_ROWS,
+            max_text_bytes_per_row: VECTOR_ROW_MAX_TEXT_BYTES,
+        }),
+    )?;
 
     println!("index rebuild completed");
     Ok(())

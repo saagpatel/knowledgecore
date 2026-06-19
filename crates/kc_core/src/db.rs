@@ -8,11 +8,33 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
 const LATEST_SCHEMA_VERSION: i64 = 11;
+const SQLITE_HEADER: &[u8; 16] = b"SQLite format 3\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DbMigrationOutcome {
     Migrated,
     AlreadyEncrypted,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DbEncryptionDerivedState {
+    DisabledPlaintext,
+    PendingMigration,
+    MigratedLocked,
+    MigratedUnlocked,
+    MigrationFailedRecoverable,
+}
+
+impl DbEncryptionDerivedState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::DisabledPlaintext => "disabled_plaintext",
+            Self::PendingMigration => "pending_migration",
+            Self::MigratedLocked => "migrated_locked",
+            Self::MigratedUnlocked => "migrated_unlocked",
+            Self::MigrationFailedRecoverable => "migration_failed_recoverable",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -100,6 +122,51 @@ fn passphrase_from_session(db_path: &Path) -> Option<String> {
     let key = normalize_session_key(&vault_root);
     let sessions = db_unlock_sessions().lock().ok()?;
     sessions.get(&key).cloned()
+}
+
+fn has_plaintext_sqlite_header(db_path: &Path) -> AppResult<bool> {
+    match fs::read(db_path) {
+        Ok(bytes) => Ok(bytes.starts_with(SQLITE_HEADER)),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(true),
+        Err(e) => Err(AppError::new(
+            "KC_DB_OPEN_FAILED",
+            "db",
+            "failed reading database header",
+            false,
+            serde_json::json!({ "error": e.to_string(), "path": db_path }),
+        )),
+    }
+}
+
+pub fn derive_db_encryption_state(
+    _vault_path: &Path,
+    db_path: &Path,
+    enabled: bool,
+) -> AppResult<DbEncryptionDerivedState> {
+    let tmp_path = db_path.with_extension("sqlcipher.tmp");
+    let bak_path = db_path.with_extension("pre-sqlcipher.bak");
+    if tmp_path.exists() || bak_path.exists() {
+        return Ok(DbEncryptionDerivedState::MigrationFailedRecoverable);
+    }
+
+    if !enabled {
+        return Ok(DbEncryptionDerivedState::DisabledPlaintext);
+    }
+
+    if has_plaintext_sqlite_header(db_path)? {
+        return Ok(DbEncryptionDerivedState::PendingMigration);
+    }
+
+    let passphrase = passphrase_from_session(db_path).or_else(passphrase_from_env);
+    let Some(passphrase) = passphrase else {
+        return Ok(DbEncryptionDerivedState::MigratedLocked);
+    };
+
+    match verify_db_passphrase(db_path, &passphrase) {
+        Ok(()) => Ok(DbEncryptionDerivedState::MigratedUnlocked),
+        Err(err) if err.code == "KC_DB_KEY_INVALID" => Ok(DbEncryptionDerivedState::MigratedLocked),
+        Err(err) => Err(err),
+    }
 }
 
 fn validate_key_on_connection(conn: &Connection, passphrase: &str) -> AppResult<()> {

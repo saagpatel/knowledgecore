@@ -2,6 +2,7 @@ use crate::app_error::{AppError, AppResult};
 use crate::events::append_event;
 use crate::types::{DocId, ObjectHash};
 use rusqlite::{params, Connection};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct IngestedDoc {
@@ -20,6 +21,117 @@ pub struct IngestBytesReq<'a> {
     pub effective_ts_ms: i64,
     pub source_path: Option<&'a str>,
     pub now_ms: i64,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct IngestResourceLimits {
+    pub max_bytes: usize,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ScanFolderResourceLimits {
+    pub max_files: usize,
+    pub max_depth: usize,
+    pub max_bytes_per_file: usize,
+}
+
+fn resource_limit_error(category: &str, message: &str, details: serde_json::Value) -> AppError {
+    AppError::new(
+        "KC_RESOURCE_LIMIT_EXCEEDED",
+        category,
+        message,
+        false,
+        details,
+    )
+}
+
+pub fn validate_ingest_bytes_limits(
+    bytes_len: usize,
+    limits: IngestResourceLimits,
+) -> AppResult<()> {
+    if bytes_len > limits.max_bytes {
+        return Err(resource_limit_error(
+            "ingest",
+            "ingest payload exceeds configured byte limit",
+            serde_json::json!({
+                "bytes": bytes_len,
+                "max_bytes": limits.max_bytes,
+            }),
+        ));
+    }
+    Ok(())
+}
+
+pub fn validate_scan_folder_files(
+    scan_root: &Path,
+    files: &[PathBuf],
+    limits: ScanFolderResourceLimits,
+) -> AppResult<()> {
+    if files.len() > limits.max_files {
+        return Err(resource_limit_error(
+            "ingest",
+            "scan-folder exceeds configured file-count limit",
+            serde_json::json!({
+                "files": files.len(),
+                "max_files": limits.max_files,
+                "scan_root": scan_root,
+            }),
+        ));
+    }
+
+    for file in files {
+        let depth = file
+            .strip_prefix(scan_root)
+            .ok()
+            .map(|rel| rel.components().count())
+            .unwrap_or_else(|| file.components().count());
+        if depth > limits.max_depth {
+            return Err(resource_limit_error(
+                "ingest",
+                "scan-folder file exceeds configured traversal depth",
+                serde_json::json!({
+                    "path": file,
+                    "depth": depth,
+                    "max_depth": limits.max_depth,
+                    "scan_root": scan_root,
+                }),
+            ));
+        }
+
+        let metadata = std::fs::metadata(file).map_err(|e| {
+            AppError::new(
+                "KC_INGEST_READ_FAILED",
+                "ingest",
+                "failed reading scan file metadata",
+                false,
+                serde_json::json!({ "error": e.to_string(), "path": file }),
+            )
+        })?;
+        let bytes = metadata.len() as usize;
+        if bytes > limits.max_bytes_per_file {
+            return Err(resource_limit_error(
+                "ingest",
+                "scan-folder file exceeds configured byte limit",
+                serde_json::json!({
+                    "path": file,
+                    "bytes": bytes,
+                    "max_bytes_per_file": limits.max_bytes_per_file,
+                }),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+pub fn ingest_bytes_with_limits(
+    conn: &Connection,
+    object_store: &crate::object_store::ObjectStore,
+    req: IngestBytesReq<'_>,
+    limits: IngestResourceLimits,
+) -> AppResult<IngestedDoc> {
+    validate_ingest_bytes_limits(req.bytes.len(), limits)?;
+    ingest_bytes(conn, object_store, req)
 }
 
 pub fn ingest_bytes(

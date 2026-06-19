@@ -3,11 +3,16 @@
 ## Purpose
 Define DB-at-rest encryption contracts using SQLCipher with vault schema v3 and explicit unlock/migration flows.
 
+See `docs/21-sqlcipher-state-model-plan-2026-06-19.md` for the approval-gated production state model plan. That plan chooses a future `vault.json` v4 `db_encryption.state` boundary, but it is not active runtime behavior until implementation approval, registry updates, schema validation tests, and compatibility coverage land.
+
 ## Invariants
 - Object-store encryption behavior from v2 remains valid and optional.
 - SQLCipher DB encryption is opt-in and versioned.
 - `vault_open` supports v1/v2/v3 and normalizes to active internal model.
 - Unlock/lock/session behavior is explicit and reported via `AppError.code`.
+- Unsupported DB encryption mode or KDF metadata hard-fails before unlock or migration proceeds.
+- Migration is idempotent for an already encrypted DB when the supplied passphrase validates.
+- Status surfaces may report an inferred SQLCipher lifecycle state for v3 vaults; this is status-only until the v4 state boundary is implemented.
 
 ## Non-goals
 - External KMS integration.
@@ -43,9 +48,13 @@ Define DB-at-rest encryption contracts using SQLCipher with vault schema v3 and 
 
 ## Acceptance tests
 - v1/v2 vaults open and normalize; v3 vault opens with expected DB metadata.
+- Unsupported DB encryption mode and unsupported DB KDF algorithm fail with `KC_DB_ENCRYPTION_UNSUPPORTED`.
 - Encrypted DB unlock with valid passphrase succeeds.
 - Invalid passphrase fails with `KC_DB_KEY_INVALID`.
 - Migration integrity check passes and no active plaintext DB remains.
+- Re-running migration on an already encrypted DB returns `already_encrypted` for the valid key and `KC_DB_KEY_INVALID` for a wrong key.
+- Successful migration leaves no `.sqlcipher.tmp` or `.pre-sqlcipher.bak` artifact.
+- Status-only state derivation covers `disabled_plaintext`, `pending_migration`, `migrated_locked`, `migrated_unlocked`, and `migration_failed_recoverable`.
 - Export/verifier schema checks include DB encryption metadata.
 
 ## Rollout gate and stop conditions

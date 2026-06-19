@@ -1,7 +1,9 @@
 use kc_core::services::{ExtractInput, ExtractService, ToolchainIdentity};
 use kc_core::types::DocId;
 use kc_extract::ocr::{ocr_pdf_via_images, should_run_ocr, OcrConfig};
-use kc_extract::pdf::{extract_pdf_text, PdfiumConfig};
+use kc_extract::pdf::{
+    extract_pdf_text, extract_pdf_text_with_limits, PdfResourceLimits, PdfiumConfig,
+};
 use kc_extract::DefaultExtractor;
 
 #[test]
@@ -75,4 +77,34 @@ fn golden_pdf_ocr_hard_fails_when_tesseract_missing() {
     .expect_err("missing tesseract command must hard-fail");
 
     assert_eq!(err.code, "KC_TESSERACT_UNAVAILABLE");
+}
+
+#[test]
+fn pdf_resource_limits_reject_generated_oversized_input() {
+    let err = extract_pdf_text_with_limits(
+        b"generated pdf-like bytes",
+        &PdfiumConfig { library_path: None },
+        Some(PdfResourceLimits {
+            max_input_bytes: 8,
+            max_extracted_bytes: 1024,
+        }),
+    )
+    .expect_err("oversized generated input should fail");
+
+    assert_eq!(err.code, "KC_RESOURCE_LIMIT_EXCEEDED");
+}
+
+#[test]
+fn pdf_resource_limits_reject_generated_oversized_extracted_text() {
+    let err = extract_pdf_text_with_limits(
+        b"generated extracted text body",
+        &PdfiumConfig { library_path: None },
+        Some(PdfResourceLimits {
+            max_input_bytes: 1024,
+            max_extracted_bytes: 8,
+        }),
+    )
+    .expect_err("oversized generated extracted text should fail");
+
+    assert_eq!(err.code, "KC_RESOURCE_LIMIT_EXCEEDED");
 }

@@ -175,7 +175,8 @@ function mockApi(): DesktopRpcApi {
         db_encryption_enabled: true,
         unlocked: true,
         mode: "sqlcipher_v4",
-        key_reference: "vaultdb:v1"
+        key_reference: "vaultdb:v1",
+        state: "migrated_unlocked"
       }),
     vaultUnlock: () =>
       ok({
@@ -183,7 +184,8 @@ function mockApi(): DesktopRpcApi {
           db_encryption_enabled: true,
           unlocked: true,
           mode: "sqlcipher_v4",
-          key_reference: "vaultdb:v1"
+          key_reference: "vaultdb:v1",
+          state: "migrated_unlocked"
         }
       }),
     vaultLock: () =>
@@ -192,7 +194,8 @@ function mockApi(): DesktopRpcApi {
           db_encryption_enabled: true,
           unlocked: false,
           mode: "sqlcipher_v4",
-          key_reference: "vaultdb:v1"
+          key_reference: "vaultdb:v1",
+          state: "migrated_locked"
         }
       }),
     vaultEncryptionStatus: () =>

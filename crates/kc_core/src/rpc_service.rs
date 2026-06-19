@@ -1037,6 +1037,15 @@ pub fn sync_status_service(
     crate::sync::sync_status_target(&conn, target_uri)
 }
 
+pub fn sync_auth_readiness_service(
+    vault_path: &Path,
+    target_uri: &str,
+) -> AppResult<crate::sync::SyncAuthReadinessReportV1> {
+    let vault = vault_open(vault_path)?;
+    let conn = open_db(&vault_path.join(vault.db.relative_path))?;
+    crate::sync::sync_auth_readiness_target(&conn, target_uri)
+}
+
 pub fn sync_push_service(
     vault_path: &Path,
     target_uri: &str,

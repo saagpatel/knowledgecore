@@ -48,6 +48,7 @@ fn main() {
         commands::events_list,
         commands::jobs_list,
         commands::sync_status,
+        commands::sync_auth_readiness,
         commands::sync_push,
         commands::sync_pull,
         commands::sync_merge_preview,

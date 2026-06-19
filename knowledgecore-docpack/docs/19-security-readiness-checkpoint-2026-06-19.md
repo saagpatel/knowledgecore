@@ -61,7 +61,7 @@ Capture the current security/readiness state after the June 2026 audit, first de
 - Compatible Ed25519 sync authorship verification is now wired for v3 heads: incoming heads prefer Ed25519 verification against the trusted device public key and verified certificate chain, with legacy BLAKE3-derived signatures still accepted for compatibility.
 - S3 sync emits Ed25519 author signatures only when `KC_SYNC_AUTHOR_SIGNING_KEY_HEX` is explicitly provided and matches the verified local author device key; otherwise it preserves legacy v3 signature emission.
 - Sync head parsing now supports optional `author_signature_alg = "ed25519_sync_head_v1"` as a v3 extension. Declared Ed25519 heads must pass Ed25519 verification and cannot fall back to legacy BLAKE3-derived signatures; unknown declared algorithms fail closed.
-- Local sync signing key custody is now implemented behind explicit trust-device enrollment: schema v12 adds `sync_signing_keys`, private Ed25519 seeds are encrypted with XChaCha20-Poly1305 using the vault unlock passphrase boundary, CLI/desktop surfaces expose status and soft-delete controls, and S3 sync emits `author_signature_alg = "ed25519_sync_head_v1"` only when the custody key is unlocked and matches the verified local author device.
+- Local sync signing key custody is now implemented behind explicit trust-device enrollment: schema v12 adds `sync_signing_keys`, private Ed25519 seeds are encrypted with XChaCha20-Poly1305 using the vault unlock passphrase boundary, CLI/desktop surfaces expose enrollment/status/soft-delete/rotation controls, and S3 sync emits `author_signature_alg = "ed25519_sync_head_v1"` only when the custody key is unlocked and matches the verified local author device.
 - Recovery verification now decrypts `key_blob.enc` with the recovery phrase-derived key, checks the deterministic recovery nonce, rejects empty restored passphrases, and includes regressions for matching-hash forged blobs that cannot decrypt.
 - DB encryption lifecycle tests now pin unsupported mode/KDF rejection, idempotent already-encrypted migration detection, wrong-key failure for encrypted DB migration, and absence of stale `.sqlcipher.tmp` / `.pre-sqlcipher.bak` artifacts after successful migration.
 - SQLCipher production state semantics are captured as an approval-gated design note in `docs/21-sqlcipher-state-model-plan-2026-06-19.md`; the documented decision is a future `vault.json` v4 `db_encryption.state` boundary, with no schema or runtime behavior changed in this lane.
@@ -89,7 +89,7 @@ Capture the current security/readiness state after the June 2026 audit, first de
 - Do not promote S3 sync, managed identity, or recovery escrow to production-ready until their current risk items are resolved and verified.
 
 ## Next Recommended Lane
-1. Approve signing-key rotation/recovery semantics, then decide rollout timing for removing the undeclared legacy v3 BLAKE3-derived sync signature fallback.
+1. Implement the read-only sync auth readiness report before any private-key recovery, strict-mode enforcement, or undeclared legacy fallback removal.
 2. Decide whether to proceed with the v4 `db_encryption.state` schema implementation and compatibility fixtures.
 3. Decide whether non-OCR PDF page-count limits are needed beyond the current PDF byte and OCR page-count guardrails.
 4. Plan the next RustSec review before `2026-07-19`, especially the GTK3/Tauri Linux backend chain and the remaining macro/unicode transitives.

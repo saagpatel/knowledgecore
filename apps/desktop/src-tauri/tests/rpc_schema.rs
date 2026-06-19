@@ -5,8 +5,8 @@ use apps_desktop_tauri::rpc::{
     LineageQueryV2Req, LineageRoleGrantReq, LineageRoleListReq, LineageRoleRevokeReq,
     SearchQueryReq, SyncMergePreviewReq, SyncPullReq, SyncPushReq, SyncStatusReq,
     TrustDeviceEnrollReq, TrustDeviceEnrollSigningKeyReq, TrustDeviceListReq,
-    TrustDeviceSigningKeyDeleteReq, TrustDeviceSigningKeyStatusReq, TrustDeviceVerifyChainReq,
-    TrustIdentityCompleteReq, TrustIdentityStartReq, TrustPolicySetReq,
+    TrustDeviceSigningKeyDeleteReq, TrustDeviceSigningKeyRotateReq, TrustDeviceSigningKeyStatusReq,
+    TrustDeviceVerifyChainReq, TrustIdentityCompleteReq, TrustIdentityStartReq, TrustPolicySetReq,
     TrustPolicySetTenantTemplateReq, TrustProviderAddReq, TrustProviderDisableReq,
     TrustProviderDiscoverReq, TrustProviderListReq, VaultEncryptionEnableReq,
     VaultEncryptionMigrateReq, VaultEncryptionStatusReq, VaultInitReq, VaultLockReq,
@@ -394,6 +394,15 @@ fn rpc_schema_trust_device_requests_validate_shapes() {
     });
     assert!(serde_json::from_value::<TrustDeviceSigningKeyDeleteReq>(signing_key_delete).is_ok());
 
+    let signing_key_rotate = serde_json::json!({
+        "vault_path": "/tmp/vault",
+        "old_device_id": "device-1",
+        "new_device_label": "desktop-rotated",
+        "passphrase": "secret",
+        "now_ms": 106
+    });
+    assert!(serde_json::from_value::<TrustDeviceSigningKeyRotateReq>(signing_key_rotate).is_ok());
+
     let list = serde_json::json!({
         "vault_path": "/tmp/vault"
     });
@@ -409,6 +418,15 @@ fn rpc_schema_trust_device_rejects_unknown_fields() {
         "extra": "nope"
     });
     assert!(serde_json::from_value::<TrustDeviceEnrollReq>(invalid).is_err());
+
+    let invalid_rotate = serde_json::json!({
+        "vault_path": "/tmp/vault",
+        "old_device_id": "device-1",
+        "new_device_label": "desktop-rotated",
+        "passphrase": "secret",
+        "extra": "nope"
+    });
+    assert!(serde_json::from_value::<TrustDeviceSigningKeyRotateReq>(invalid_rotate).is_err());
 }
 
 #[test]

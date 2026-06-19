@@ -19,7 +19,7 @@ Adopt an explicit algorithm-signaled sync head transition before removing the le
 - Prefer adding `author_signature_alg` to the sync head metadata over silently changing v3 semantics.
 - Keep existing v1/v2/v3 heads readable during the transition.
 - Treat legacy BLAKE3-derived v3 signatures as compatibility-only and never as production-grade signed sync.
-- Do not extend sync signing private-key persistence beyond the approved local encrypted custody model until rotation, recovery, and fallback-removal behavior is explicitly approved.
+- Do not extend sync signing private-key persistence beyond the approved local encrypted custody and replacement-device rotation model until recovery and fallback-removal behavior is explicitly approved.
 
 ## Recommended Key Custody Direction
 Use vault-local encrypted key custody rather than environment variables for production signing.
@@ -30,7 +30,8 @@ Use vault-local encrypted key custody rather than environment variables for prod
 - Done: keep the trusted device public key as the verification anchor.
 - Done: require unlock/passphrase availability before signing declared sync heads; locked custody fails closed rather than silently downgrading.
 - Done: expose explicit status and soft-delete surfaces for local encrypted signing-key custody.
-- Support explicit rotation by enrolling a new device key/certificate and marking old signing material retired.
+- Done: support explicit runtime rotation by enrolling a new signing device/certificate and marking old local signing material retired.
+- Recovery/fallback-removal policy is captured in `docs/25-sync-signing-key-rotation-recovery-and-fallback-plan-2026-06-19.md`.
 - Done: support explicit deletion by retiring encrypted private-key material without deleting historical public trust records needed for verification.
 
 ## Schema and Compatibility Contract
@@ -56,6 +57,7 @@ Use vault-local encrypted key custody rather than environment variables for prod
 - Schema v12 adds `sync_signing_keys` for encrypted local custody metadata and encrypted signing seeds.
 - `trust device enroll-signing-key` creates a verified trusted device, enrolls its certificate, and stores the encrypted matching signing seed without printing secret material.
 - `trust device signing-key-status` and `trust device signing-key-delete` expose custody metadata and explicit local soft-delete without printing secret material; desktop RPC mirrors those status/delete surfaces.
+- `trust device signing-key-rotate` creates a replacement signing device and certificate, stores the new encrypted seed, then marks the old local custody row rotated/deleted while leaving old public trust records readable.
 - S3 sync uses an unlocked custody key to emit declared Ed25519 heads; if no custody key exists, compatibility behavior is preserved.
 
 ## Non-Goals
@@ -68,9 +70,12 @@ Use vault-local encrypted key custody rather than environment variables for prod
 
 ## Approval Gates
 - Changing writer behavior beyond custody-signed S3 heads requires explicit approval.
-- Extending private signing-key persistence to rotation, backup/recovery, or remote custody requires explicit approval and tests.
+- Extending private signing-key persistence to backup/recovery or remote custody requires explicit approval and tests.
 - Removing the legacy fallback requires explicit rollout approval and compatibility evidence for existing heads.
 - Any vault metadata/schema change requires fixtures, downgrade/rollback expectations, and no private-document ingestion.
+
+## Next Safe Lane
+Implement a read-only sync auth readiness report before any private-key recovery, schema migration, strict-mode enforcement, or undeclared legacy fallback removal.
 
 ## Verification Expectations for the Next Code Lane
 - `cargo fmt --all -- --check`
@@ -83,4 +88,4 @@ Use vault-local encrypted key custody rather than environment variables for prod
 - `node scripts/dependency-watch.mjs`
 
 ## Done Criteria
-This lane is done when encrypted local custody, custody-signed declared S3 heads, and compatibility fallback preservation are verified, with rotation/recovery and undeclared legacy fallback removal still approval-gated.
+This lane is done when encrypted local custody, custody-signed declared S3 heads, replacement-device rotation, and compatibility fallback preservation are verified, with recovery and undeclared legacy fallback removal still approval-gated.

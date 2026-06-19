@@ -295,6 +295,17 @@ pub enum TrustDeviceCmd {
         #[arg(long = "now-ms")]
         now_ms: Option<i64>,
     },
+    SigningKeyRotate {
+        vault_path: String,
+        #[arg(long = "old-device-id")]
+        old_device_id: String,
+        #[arg(long = "new-device-label")]
+        new_device_label: String,
+        #[arg(long = "passphrase-env")]
+        passphrase_env: String,
+        #[arg(long = "now-ms")]
+        now_ms: Option<i64>,
+    },
     List {
         vault_path: String,
     },

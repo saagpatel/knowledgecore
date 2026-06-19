@@ -1,1 +1,1 @@
-{}
+{"main-local-vault":{"identifier":"main-local-vault","description":"Bind the primary local desktop window to the app command surface without granting core plugin APIs or remote web content access.","local":true,"windows":["main"],"permissions":[]}}

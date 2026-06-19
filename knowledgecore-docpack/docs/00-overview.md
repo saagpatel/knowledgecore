@@ -29,6 +29,11 @@ KnowledgeCore Desktop is a local-first RAG desktop app with a hardened determini
 - STOP on Tier 1 invariant violation, boundary violation, or unversioned schema change.
 - GO only when gates pass.
 
+## Current security readiness
+- Current security readiness is tracked in `docs/19-security-readiness-checkpoint-2026-06-19.md`.
+- Optional remote sync remains explicit only; do not add background sync or new cloud sync behavior without design approval.
+- SQLCipher, S3 sync, managed identity, and recovery escrow surfaces exist, but production readiness depends on the current checkpoint gates and follow-up hardening work.
+
 ## Deferrals
 - SQLCipher DB encryption expansion
 - S3 sync transport and passphrase trust metadata hardening

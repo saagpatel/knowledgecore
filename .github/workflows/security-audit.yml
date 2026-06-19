@@ -17,27 +17,54 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Detect Rust dependency changes
+        id: changes
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            rust:
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'crates/**'
+              - 'apps/desktop/src-tauri/**'
+              - 'security/rustsec-policy.json'
+              - 'security/dependency-watch.json'
+              - 'scripts/audit-rust.mjs'
+              - 'scripts/dependency-watch.mjs'
+              - '.github/workflows/security-audit.yml'
+
       - name: Setup Rust
+        if: github.event_name != 'pull_request' || steps.changes.outputs.rust == 'true'
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install cargo-audit
+        if: github.event_name != 'pull_request' || steps.changes.outputs.rust == 'true'
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-audit
 
       - name: Setup Node
+        if: github.event_name != 'pull_request' || steps.changes.outputs.rust == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
       - name: Run RustSec Policy Gate
+        if: github.event_name != 'pull_request' || steps.changes.outputs.rust == 'true'
         run: node ./scripts/audit-rust.mjs
 
       - name: Dependency Watch (Advisory)
+        if: github.event_name != 'pull_request' || steps.changes.outputs.rust == 'true'
         run: node ./scripts/dependency-watch.mjs --no-fail
 
       - name: Dependency Watch (Strict)
+        if: github.event_name != 'pull_request' || steps.changes.outputs.rust == 'true'
         run: node ./scripts/dependency-watch.mjs
+
+      - name: Skip RustSec Policy Gate
+        if: github.event_name == 'pull_request' && steps.changes.outputs.rust != 'true'
+        run: echo "RustSec policy skipped because this pull request does not change Rust dependency/security inputs."
 
   dependency-sweep:
     name: Weekly Dependency Sweep

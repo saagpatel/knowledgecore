@@ -254,7 +254,9 @@ fn rpc_schema_sync_accepts_uri_targets() {
         "now_ms": 123
     });
     assert!(serde_json::from_value::<SyncPushReq>(push.clone()).is_ok());
-    assert!(serde_json::from_value::<SyncPullReq>(push).is_ok());
+    let pull_without_strict_auth = serde_json::from_value::<SyncPullReq>(push)
+        .expect("pull accepts omitted strict_auth as default strict");
+    assert_eq!(pull_without_strict_auth.strict_auth, None);
 
     let pull_with_merge = serde_json::json!({
         "vault_path": "/tmp/vault",

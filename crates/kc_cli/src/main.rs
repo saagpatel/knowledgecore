@@ -242,6 +242,7 @@ fn main() {
                 vault_path,
                 target_path,
                 auto_merge,
+                allow_legacy_auth,
                 strict_auth,
                 now_ms,
             } => commands::sync::run_pull(
@@ -249,7 +250,7 @@ fn main() {
                 &target_path,
                 now_ms,
                 auto_merge.as_deref(),
-                strict_auth,
+                strict_auth || !allow_legacy_auth,
             ),
             SyncCmd::MergePreview {
                 vault_path,

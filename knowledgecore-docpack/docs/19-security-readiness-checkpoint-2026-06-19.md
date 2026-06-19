@@ -60,6 +60,7 @@ Capture the current security/readiness state after the June 2026 audit, first de
 - UI lint, test, build, and typecheck gates passed from a temp deploy using lockfile package versions because repo-local `pnpm install` remains tool-policy blocked; `node_modules/.pnpm` content exists, but `apps/desktop/ui/node_modules` is still absent.
 - Compatible Ed25519 sync authorship verification is now wired for v3 heads: incoming heads prefer Ed25519 verification against the trusted device public key and verified certificate chain, with legacy BLAKE3-derived signatures still accepted for compatibility.
 - S3 sync emits Ed25519 author signatures only when `KC_SYNC_AUTHOR_SIGNING_KEY_HEX` is explicitly provided and matches the verified local author device key; otherwise it preserves legacy v3 signature emission.
+- Sync head parsing now supports optional `author_signature_alg = "ed25519_sync_head_v1"` as a v3 extension. Declared Ed25519 heads must pass Ed25519 verification and cannot fall back to legacy BLAKE3-derived signatures; unknown declared algorithms fail closed.
 - Recovery verification now decrypts `key_blob.enc` with the recovery phrase-derived key, checks the deterministic recovery nonce, rejects empty restored passphrases, and includes regressions for matching-hash forged blobs that cannot decrypt.
 - DB encryption lifecycle tests now pin unsupported mode/KDF rejection, idempotent already-encrypted migration detection, wrong-key failure for encrypted DB migration, and absence of stale `.sqlcipher.tmp` / `.pre-sqlcipher.bak` artifacts after successful migration.
 - SQLCipher production state semantics are captured as an approval-gated design note in `docs/21-sqlcipher-state-model-plan-2026-06-19.md`; the documented decision is a future `vault.json` v4 `db_encryption.state` boundary, with no schema or runtime behavior changed in this lane.
@@ -70,7 +71,7 @@ Capture the current security/readiness state after the June 2026 audit, first de
 - Approved production resource-limit defaults and wiring slices are captured in `docs/23-production-resource-limits-decision-2026-06-19.md`; CLI/RPC ingest, default PDF byte extraction, OCR page-count validation, S3 sync pull zip extraction, filesystem snapshot directory apply preflight, and CLI index rebuild now pass default limits.
 
 ## Current Risk Posture
-- High: sync head v3 authorship now supports Ed25519 verification and env-key signing, but legacy BLAKE3-derived signatures are still accepted for compatibility until key custody, schema/algorithm signaling, and fallback removal are approved.
+- High: sync head v3 authorship now supports Ed25519 verification, env-key signing, and strict declared-algorithm enforcement, but undeclared legacy BLAKE3-derived signatures are still accepted for compatibility until key custody and fallback removal are approved.
 - High: object-store KDF metadata still has a constant default salt id. Any per-vault random salt change requires explicit migration design approval.
 - High: SQLCipher enable/migrate lifecycle has status-only state derivation and a v4 explicit-state decision, but persisting `db_encryption.state` remains approval-gated.
 - Medium: recovery verification, generated-fixture restore drill coverage, opt-in resource-limit tests, and approved production resource-limit wiring slices are in place; future resource-limit work should focus on compatibility tuning and any newly approved surfaces.
@@ -87,7 +88,7 @@ Capture the current security/readiness state after the June 2026 audit, first de
 - Do not promote S3 sync, managed identity, or recovery escrow to production-ready until their current risk items are resolved and verified.
 
 ## Next Recommended Lane
-1. Decide key custody, schema/algorithm signaling, and rollout timing for removing the legacy v3 BLAKE3-derived sync signature fallback.
+1. Decide key custody and rollout timing for removing the undeclared legacy v3 BLAKE3-derived sync signature fallback.
 2. Decide whether to proceed with the v4 `db_encryption.state` schema implementation and compatibility fixtures.
 3. Decide whether non-OCR PDF page-count limits are needed beyond the current PDF byte and OCR page-count guardrails.
 4. Plan the next RustSec review before `2026-07-19`, especially the GTK3/Tauri Linux backend chain and the remaining macro/unicode transitives.

@@ -257,6 +257,27 @@ pub struct TrustDeviceSigningKeyDeleteRes {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct TrustDeviceSigningKeyRotateReq {
+    pub vault_path: String,
+    pub old_device_id: String,
+    pub new_device_label: String,
+    pub passphrase: String,
+    pub now_ms: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TrustDeviceSigningKeyRotateRes {
+    pub old_signing_key: TrustDeviceSigningKeyRes,
+    pub device_id: String,
+    pub label: String,
+    pub fingerprint: String,
+    pub cert_id: String,
+    pub cert_chain_hash: String,
+    pub signing_key: TrustDeviceSigningKeyRes,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TrustProviderAddReq {
     pub vault_path: String,
     pub provider_id: String,
@@ -1318,6 +1339,29 @@ pub fn trust_device_signing_key_delete_rpc(
         Ok(out) => RpcResponse::ok(TrustDeviceSigningKeyDeleteRes {
             deleted: out.deleted,
             signing_key: out.signing_key.map(signing_key_res),
+        }),
+        Err(error) => RpcResponse::err(error),
+    }
+}
+
+pub fn trust_device_signing_key_rotate_rpc(
+    req: TrustDeviceSigningKeyRotateReq,
+) -> RpcResponse<TrustDeviceSigningKeyRotateRes> {
+    match rpc_service::trust_device_signing_key_rotate_service(
+        std::path::Path::new(&req.vault_path),
+        &req.old_device_id,
+        &req.new_device_label,
+        &req.passphrase,
+        req.now_ms,
+    ) {
+        Ok(out) => RpcResponse::ok(TrustDeviceSigningKeyRotateRes {
+            old_signing_key: signing_key_res(out.old_signing_key),
+            device_id: out.device.device_id,
+            label: out.device.label,
+            fingerprint: out.device.fingerprint,
+            cert_id: out.certificate.cert_id,
+            cert_chain_hash: out.certificate.cert_chain_hash,
+            signing_key: signing_key_res(out.signing_key),
         }),
         Err(error) => RpcResponse::err(error),
     }

@@ -14,6 +14,7 @@ fn main() {
         commands::trust_device_list,
         commands::trust_device_signing_key_status,
         commands::trust_device_signing_key_delete,
+        commands::trust_device_signing_key_rotate,
         commands::trust_provider_add,
         commands::trust_provider_disable,
         commands::trust_provider_list,

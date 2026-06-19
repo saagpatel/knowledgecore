@@ -74,6 +74,25 @@ fn recovery_verify_rejects_tampered_blob() {
 }
 
 #[test]
+fn recovery_verify_rejects_missing_bundle_files() {
+    let root = tempfile::tempdir().expect("tempdir").keep();
+    let vault = vault_init(&root.join("vault"), "demo", 1).expect("vault init");
+    let output = root.join("recovery-out");
+
+    let generated = generate_recovery_bundle(&vault.vault_id, &output, "vault-passphrase", 100)
+        .expect("generate recovery");
+    std::fs::remove_file(generated.bundle_path.join("key_blob.enc")).expect("remove key blob");
+
+    let err = verify_recovery_bundle(
+        &vault.vault_id,
+        &generated.bundle_path,
+        &generated.recovery_phrase,
+    )
+    .expect_err("verify should fail");
+    assert_eq!(err.code, "KC_RECOVERY_BUNDLE_INVALID");
+}
+
+#[test]
 fn recovery_verify_rejects_matching_hash_for_undecryptable_blob() {
     let root = tempfile::tempdir().expect("tempdir").keep();
     let vault = vault_init(&root.join("vault"), "demo", 1).expect("vault init");

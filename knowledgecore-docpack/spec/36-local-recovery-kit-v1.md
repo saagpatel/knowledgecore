@@ -58,6 +58,7 @@ Define local-only recovery bundle contracts for restoring vault encryption acces
 - Verify succeeds with correct phrase and fails with `KC_RECOVERY_PHRASE_INVALID` on mismatch.
 - Tampered bundle fails with `KC_RECOVERY_BUNDLE_INVALID`.
 - Matching-hash forged blobs that cannot decrypt, or whose nonce no longer matches the manifest context, fail with `KC_RECOVERY_BUNDLE_INVALID`.
+- Operator restore drill tests must use generated temp vaults only and prove the restored passphrase can unlock/decrypt the generated fixture without persisting secret material.
 - Recovery schema validation tests pass.
 
 ## Rollout gate and stop conditions

@@ -53,6 +53,7 @@ AppError schema v1 and stable error taxonomy; UI branches on code only.
 - Schema validation: retryable=false
 - Tool unavailable (PDFium/Tesseract): retryable=true after install/config
 - Ask provider unavailable: retryable=true
+- Resource policy exceeded: retryable=false unless caller changes explicit limits or input.
 
 ## Taxonomy (v1)
 - Vault/DB: `KC_VAULT_*`, `KC_DB_*`
@@ -64,6 +65,7 @@ AppError schema v1 and stable error taxonomy; UI branches on code only.
 - Ingest: `KC_INGEST_*`, `KC_INBOX_*`, `KC_TIMESTAMP_*`
 - Extract: `KC_CANONICAL_*`, `KC_PDFIUM_UNAVAILABLE`, `KC_TESSERACT_UNAVAILABLE`, `KC_OCR_FAILED`
 - Chunking: `KC_CHUNK_*`
+- Resource policy: `KC_RESOURCE_LIMIT_EXCEEDED`
 - Index: `KC_FTS_*`, `KC_VECTOR_*`, `KC_EMBEDDING_*`
 - Retrieval: `KC_RETRIEVAL_*`
 - Locator/Snippet: `KC_LOCATOR_*`, `KC_SNIPPET_*`

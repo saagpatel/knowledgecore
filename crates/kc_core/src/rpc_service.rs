@@ -1,11 +1,12 @@
 use crate::app_error::{AppError, AppResult};
 use crate::canonical::load_canonical_text;
 use crate::db::{
-    db_is_unlocked, db_lock, db_unlock, migrate_db_to_sqlcipher, open_db, DbMigrationOutcome,
+    db_is_unlocked, db_lock, db_unlock, derive_db_encryption_state, migrate_db_to_sqlcipher,
+    open_db, DbMigrationOutcome,
 };
 use crate::events::append_event;
 use crate::hashing::blake3_hex_prefixed;
-use crate::ingest::{ingest_bytes, IngestBytesReq};
+use crate::ingest::{ingest_bytes_with_limits, validate_scan_folder_files, IngestBytesReq};
 use crate::lineage_governance::{
     lineage_lock_acquire_scope, lineage_role_grant, lineage_role_list, lineage_role_revoke,
     LineageRoleBindingV2, LineageScopeLockLeaseV2,
@@ -32,6 +33,7 @@ use crate::recovery_escrow_local::LocalRecoveryEscrowProvider;
 use crate::recovery_escrow_private_kms::{
     PrivateKmsRecoveryEscrowConfig, PrivateKmsRecoveryEscrowProvider,
 };
+use crate::resource_limits::{ingest_single_file_limits, scan_folder_limits};
 use crate::trust::{
     trust_device_init, trust_device_list, trust_device_verify, TrustedDeviceRecord,
 };
@@ -171,6 +173,7 @@ pub struct VaultDbLockStatus {
     pub unlocked: bool,
     pub mode: String,
     pub key_reference: Option<String>,
+    pub state: String,
 }
 
 #[derive(Debug, Clone)]
@@ -179,6 +182,7 @@ pub struct VaultDbEncryptStatus {
     pub mode: String,
     pub key_reference: Option<String>,
     pub unlocked: bool,
+    pub state: String,
 }
 
 #[derive(Debug, Clone)]
@@ -740,12 +744,14 @@ pub fn ingest_scan_folder_service(
     let store = object_store_without_passphrase(&vault, vault_path)?;
 
     let mut files: Vec<PathBuf> = walkdir::WalkDir::new(scan_root)
+        .follow_links(false)
         .into_iter()
         .filter_map(Result::ok)
         .filter(|e| e.file_type().is_file())
         .map(|e| e.path().to_path_buf())
         .collect();
     files.sort();
+    validate_scan_folder_files(scan_root, &files, scan_folder_limits())?;
 
     let mut ingested = 0i64;
     for path in files {
@@ -758,7 +764,7 @@ pub fn ingest_scan_folder_service(
                 serde_json::json!({ "error": e.to_string(), "path": path }),
             )
         })?;
-        ingest_bytes(
+        ingest_bytes_with_limits(
             &conn,
             &store,
             IngestBytesReq {
@@ -769,6 +775,7 @@ pub fn ingest_scan_folder_service(
                 source_path: Some(&path.to_string_lossy()),
                 now_ms,
             },
+            ingest_single_file_limits(),
         )?;
         ingested += 1;
     }
@@ -796,7 +803,7 @@ pub fn ingest_inbox_start_service(
         )
     })?;
 
-    let out = ingest_bytes(
+    let out = ingest_bytes_with_limits(
         &conn,
         &store,
         IngestBytesReq {
@@ -807,6 +814,7 @@ pub fn ingest_inbox_start_service(
             source_path: Some(&file_path.to_string_lossy()),
             now_ms,
         },
+        ingest_single_file_limits(),
     )?;
 
     let job_id = format!(
@@ -2023,7 +2031,9 @@ pub fn vault_recovery_escrow_restore_service(
 fn db_lock_status_for_vault(
     vault_path: &Path,
     vault: &crate::vault::VaultJsonV2,
-) -> VaultDbLockStatus {
+) -> AppResult<VaultDbLockStatus> {
+    let db_path = vault_path.join(vault.db.relative_path.clone());
+    let state = derive_db_encryption_state(vault_path, &db_path, vault.db_encryption.enabled)?;
     let unlocked = if vault.db_encryption.enabled {
         db_is_unlocked(vault_path)
             || std::env::var("KC_VAULT_DB_PASSPHRASE").is_ok()
@@ -2031,24 +2041,27 @@ fn db_lock_status_for_vault(
     } else {
         true
     };
-    VaultDbLockStatus {
+    Ok(VaultDbLockStatus {
         db_encryption_enabled: vault.db_encryption.enabled,
         unlocked,
         mode: vault.db_encryption.mode.clone(),
         key_reference: vault.db_encryption.key_reference.clone(),
-    }
+        state: state.as_str().to_string(),
+    })
 }
 
 fn db_encrypt_status_for_vault(
     vault_path: &Path,
     vault: &crate::vault::VaultJsonV2,
-) -> VaultDbEncryptStatus {
-    VaultDbEncryptStatus {
+) -> AppResult<VaultDbEncryptStatus> {
+    let lock_status = db_lock_status_for_vault(vault_path, vault)?;
+    Ok(VaultDbEncryptStatus {
         enabled: vault.db_encryption.enabled,
         mode: vault.db_encryption.mode.clone(),
         key_reference: vault.db_encryption.key_reference.clone(),
-        unlocked: db_lock_status_for_vault(vault_path, vault).unlocked,
-    }
+        unlocked: lock_status.unlocked,
+        state: lock_status.state,
+    })
 }
 
 fn ensure_passphrase_not_empty(passphrase: &str) -> AppResult<()> {
@@ -2066,29 +2079,29 @@ fn ensure_passphrase_not_empty(passphrase: &str) -> AppResult<()> {
 
 pub fn vault_lock_status_service(vault_path: &Path) -> AppResult<VaultDbLockStatus> {
     let vault = vault_open(vault_path)?;
-    Ok(db_lock_status_for_vault(vault_path, &vault))
+    db_lock_status_for_vault(vault_path, &vault)
 }
 
 pub fn vault_unlock_service(vault_path: &Path, passphrase: &str) -> AppResult<VaultDbLockStatus> {
     ensure_passphrase_not_empty(passphrase)?;
     let vault = vault_open(vault_path)?;
     if !vault.db_encryption.enabled {
-        return Ok(db_lock_status_for_vault(vault_path, &vault));
+        return db_lock_status_for_vault(vault_path, &vault);
     }
     let db_path = vault_path.join(vault.db.relative_path.clone());
     db_unlock(vault_path, &db_path, passphrase)?;
-    Ok(db_lock_status_for_vault(vault_path, &vault))
+    db_lock_status_for_vault(vault_path, &vault)
 }
 
 pub fn vault_lock_service(vault_path: &Path) -> AppResult<VaultDbLockStatus> {
     let vault = vault_open(vault_path)?;
     db_lock(vault_path)?;
-    Ok(db_lock_status_for_vault(vault_path, &vault))
+    db_lock_status_for_vault(vault_path, &vault)
 }
 
 pub fn vault_db_encrypt_status_service(vault_path: &Path) -> AppResult<VaultDbEncryptStatus> {
     let vault = vault_open(vault_path)?;
-    Ok(db_encrypt_status_for_vault(vault_path, &vault))
+    db_encrypt_status_for_vault(vault_path, &vault)
 }
 
 pub fn vault_db_encrypt_enable_service(
@@ -2106,7 +2119,7 @@ pub fn vault_db_encrypt_enable_service(
     }
     let db_path = vault_path.join(vault.db.relative_path.clone());
     db_unlock(vault_path, &db_path, passphrase)?;
-    Ok(db_encrypt_status_for_vault(vault_path, &vault))
+    db_encrypt_status_for_vault(vault_path, &vault)
 }
 
 pub fn vault_db_encrypt_migrate_service(
@@ -2152,7 +2165,7 @@ pub fn vault_db_encrypt_migrate_service(
         )
     })?;
     Ok(VaultDbEncryptMigrateResult {
-        status: db_encrypt_status_for_vault(vault_path, &vault),
+        status: db_encrypt_status_for_vault(vault_path, &vault)?,
         outcome: match migration_outcome {
             DbMigrationOutcome::Migrated => "migrated".to_string(),
             DbMigrationOutcome::AlreadyEncrypted => "already_encrypted".to_string(),

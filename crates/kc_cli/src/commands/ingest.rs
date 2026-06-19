@@ -1,7 +1,8 @@
 use kc_core::app_error::{AppError, AppResult};
 use kc_core::db::open_db;
-use kc_core::ingest::{ingest_bytes, IngestBytesReq};
+use kc_core::ingest::{ingest_bytes_with_limits, validate_scan_folder_files, IngestBytesReq};
 use kc_core::object_store::ObjectStore;
+use kc_core::resource_limits::{ingest_single_file_limits, scan_folder_limits};
 use kc_core::vault::{vault_open, vault_paths};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -53,7 +54,7 @@ fn ingest_one(vault_path: &Path, file_path: &Path, source_kind: &str) -> AppResu
     })?;
 
     let now = now_ms();
-    let doc = ingest_bytes(
+    let doc = ingest_bytes_with_limits(
         &db,
         &store,
         IngestBytesReq {
@@ -64,6 +65,7 @@ fn ingest_one(vault_path: &Path, file_path: &Path, source_kind: &str) -> AppResu
             source_path: file_path.to_str(),
             now_ms: now,
         },
+        ingest_single_file_limits(),
     )?;
 
     println!("ingested {} -> {}", file_path.display(), doc.doc_id.0);
@@ -71,7 +73,9 @@ fn ingest_one(vault_path: &Path, file_path: &Path, source_kind: &str) -> AppResu
 }
 
 pub fn ingest_scan_folder(vault_path: &str, scan_root: &str, source_kind: &str) -> AppResult<()> {
-    let mut files: Vec<PathBuf> = walkdir::WalkDir::new(scan_root)
+    let scan_root_path = Path::new(scan_root);
+    let mut files: Vec<PathBuf> = walkdir::WalkDir::new(scan_root_path)
+        .follow_links(false)
         .into_iter()
         .filter_map(Result::ok)
         .filter(|e| e.file_type().is_file())
@@ -79,6 +83,7 @@ pub fn ingest_scan_folder(vault_path: &str, scan_root: &str, source_kind: &str) 
         .collect();
 
     files.sort();
+    validate_scan_folder_files(scan_root_path, &files, scan_folder_limits())?;
     for file in files {
         ingest_one(Path::new(vault_path), &file, source_kind)?;
     }
@@ -129,4 +134,41 @@ pub fn ingest_inbox_once(vault_path: &str, file_path: &str, source_kind: &str) -
 
     println!("moved {} -> {}", file.display(), target.display());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ingest_scan_folder;
+    use kc_core::db::open_db;
+    use kc_core::resource_limits::SCAN_FOLDER_MAX_DEPTH;
+    use kc_core::vault::vault_init;
+
+    #[test]
+    fn cli_scan_folder_resource_limit_rejects_deep_generated_tree_before_ingesting() {
+        let root = tempfile::tempdir().expect("tempdir").keep();
+        let vault_path = root.join("vault");
+        let scan_root = root.join("scan");
+        vault_init(&vault_path, "demo", 1).expect("vault init");
+
+        let mut deep = scan_root.clone();
+        for idx in 0..SCAN_FOLDER_MAX_DEPTH {
+            deep = deep.join(format!("d{idx}"));
+        }
+        std::fs::create_dir_all(&deep).expect("create deep tree");
+        std::fs::write(deep.join("too-deep.txt"), b"generated").expect("write generated file");
+
+        let err = ingest_scan_folder(
+            &vault_path.to_string_lossy(),
+            &scan_root.to_string_lossy(),
+            "generated-fixture",
+        )
+        .expect_err("deep generated scan tree should fail");
+        assert_eq!(err.code, "KC_RESOURCE_LIMIT_EXCEEDED");
+
+        let conn = open_db(&vault_path.join("db/knowledge.sqlite")).expect("open db");
+        let docs_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM docs", [], |r| r.get(0))
+            .expect("docs count");
+        assert_eq!(docs_count, 0);
+    }
 }

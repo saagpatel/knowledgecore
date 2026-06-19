@@ -251,6 +251,7 @@ fn rpc_vault_lock_status_unlock_and_lock_round_trip() {
         RpcResponse::Ok { data } => {
             assert!(!data.db_encryption_enabled);
             assert!(data.unlocked);
+            assert_eq!(data.state, "disabled_plaintext");
         }
         RpcResponse::Err { error } => panic!("lock status failed: {}", error.code),
     }

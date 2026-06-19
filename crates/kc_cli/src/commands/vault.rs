@@ -183,9 +183,11 @@ pub fn run_db_encrypt_status(vault_path: &str) -> AppResult<()> {
                 "mode": status.mode,
                 "key_reference": status.key_reference,
                 "unlocked": status.unlocked,
+                "state": status.state,
                 "lock_status": {
                     "db_encryption_enabled": lock_status.db_encryption_enabled,
                     "unlocked": lock_status.unlocked,
+                    "state": lock_status.state,
                 }
             }
         }))
@@ -204,6 +206,7 @@ pub fn run_db_encrypt_enable(vault_path: &str, passphrase_env: &str) -> AppResul
             "enabled": status.enabled,
             "mode": status.mode,
             "unlocked": status.unlocked,
+            "state": status.state,
         }))
         .unwrap_or_else(|_| "{}".to_string())
     );
@@ -227,6 +230,7 @@ pub fn run_db_encrypt_migrate(
                 "enabled": out.status.enabled,
                 "mode": out.status.mode,
                 "unlocked": out.status.unlocked,
+                "state": out.status.state,
             }
         }))
         .unwrap_or_else(|_| "{}".to_string())
@@ -564,9 +568,12 @@ mod tests {
         let status_enabled = vault_db_encrypt_status_service(&root).expect("db status enabled");
         assert!(status_enabled.enabled);
         assert!(status_enabled.unlocked);
+        assert_eq!(status_enabled.state, "migrated_unlocked");
 
         run_db_encrypt_migrate(root.to_string_lossy().as_ref(), &env_name, 2)
             .expect("migrate db encryption");
+        let status_migrated = vault_db_encrypt_status_service(&root).expect("db status migrated");
+        assert_eq!(status_migrated.state, "migrated_unlocked");
         run_db_encrypt_status(root.to_string_lossy().as_ref()).expect("db status command");
 
         std::env::set_var("KC_VAULT_DB_PASSPHRASE", "test-db-passphrase");

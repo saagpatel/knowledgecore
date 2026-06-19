@@ -7,7 +7,7 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
-const LATEST_SCHEMA_VERSION: i64 = 11;
+const LATEST_SCHEMA_VERSION: i64 = 12;
 const SQLITE_HEADER: &[u8; 16] = b"SQLite format 3\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,6 +115,15 @@ fn passphrase_from_env() -> Option<String> {
     std::env::var("KC_VAULT_DB_PASSPHRASE")
         .ok()
         .or_else(|| std::env::var("KC_VAULT_PASSPHRASE").ok())
+}
+
+pub fn db_passphrase_for_vault(vault_path: &Path) -> Option<String> {
+    let key = normalize_session_key(vault_path);
+    let from_session = db_unlock_sessions()
+        .lock()
+        .ok()
+        .and_then(|sessions| sessions.get(&key).cloned());
+    from_session.or_else(passphrase_from_env)
 }
 
 fn passphrase_from_session(db_path: &Path) -> Option<String> {
@@ -990,6 +999,50 @@ pub fn apply_migrations(conn: &Connection) -> AppResult<()> {
                 serde_json::json!({ "error": e.to_string() }),
             )
         })?;
+
+        tx.pragma_update(None, "user_version", 11i64).map_err(|e| {
+            AppError::new(
+                "KC_DB_MIGRATION_FAILED",
+                "db",
+                "failed to set schema user_version",
+                false,
+                serde_json::json!({ "error": e.to_string() }),
+            )
+        })?;
+
+        tx.commit().map_err(|e| {
+            AppError::new(
+                "KC_DB_MIGRATION_FAILED",
+                "db",
+                "failed to commit migration transaction",
+                false,
+                serde_json::json!({ "error": e.to_string() }),
+            )
+        })?;
+    }
+
+    let current_after_v11 = schema_version(conn)?;
+    if current_after_v11 < 12 {
+        let tx = conn.unchecked_transaction().map_err(|e| {
+            AppError::new(
+                "KC_DB_MIGRATION_FAILED",
+                "db",
+                "failed to begin migration transaction",
+                false,
+                serde_json::json!({ "error": e.to_string() }),
+            )
+        })?;
+
+        tx.execute_batch(include_str!("../migrations/0012_sync_signing_keys.sql"))
+            .map_err(|e| {
+                AppError::new(
+                    "KC_DB_MIGRATION_FAILED",
+                    "db",
+                    "failed to apply migration 0012",
+                    false,
+                    serde_json::json!({ "error": e.to_string() }),
+                )
+            })?;
 
         tx.pragma_update(None, "user_version", LATEST_SCHEMA_VERSION)
             .map_err(|e| {

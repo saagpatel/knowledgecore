@@ -109,6 +109,83 @@ fn cli_trust_identity_and_device_workflow_round_trip() {
 }
 
 #[test]
+fn cli_trust_device_enroll_signing_key_records_custody_metadata() {
+    let root = tempfile::tempdir().expect("tempdir").keep();
+    vault_init(&root, "demo", 1).expect("vault init");
+    let vault_path = root.to_string_lossy().to_string();
+
+    let identity_start = run_cli(&[
+        "trust",
+        "identity",
+        "start",
+        &vault_path,
+        "--provider",
+        "default",
+        "--now-ms",
+        "30",
+    ]);
+    assert!(
+        identity_start.status.success(),
+        "identity start stderr: {}",
+        String::from_utf8_lossy(&identity_start.stderr)
+    );
+
+    let identity_complete = run_cli(&[
+        "trust",
+        "identity",
+        "complete",
+        &vault_path,
+        "--provider",
+        "default",
+        "--code",
+        "sub:alice@example.com",
+        "--now-ms",
+        "31",
+    ]);
+    assert!(
+        identity_complete.status.success(),
+        "identity complete stderr: {}",
+        String::from_utf8_lossy(&identity_complete.stderr)
+    );
+
+    std::env::set_var("KC_TEST_SYNC_KEY_PASSPHRASE", "custody-passphrase");
+    let device_enroll = run_cli(&[
+        "trust",
+        "device",
+        "enroll-signing-key",
+        &vault_path,
+        "--device-label",
+        "desktop",
+        "--passphrase-env",
+        "KC_TEST_SYNC_KEY_PASSPHRASE",
+        "--now-ms",
+        "32",
+    ]);
+    std::env::remove_var("KC_TEST_SYNC_KEY_PASSPHRASE");
+    assert!(
+        device_enroll.status.success(),
+        "device enroll signing key stderr: {}",
+        String::from_utf8_lossy(&device_enroll.stderr)
+    );
+    let enroll_json: serde_json::Value =
+        serde_json::from_slice(&device_enroll.stdout).expect("enroll json");
+    assert_eq!(
+        enroll_json
+            .get("signing_key")
+            .and_then(|v| v.get("signature_alg"))
+            .and_then(|v| v.as_str()),
+        Some("ed25519_sync_head_v1")
+    );
+    assert!(enroll_json
+        .get("signing_key")
+        .and_then(|v| v.get("key_reference"))
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .starts_with("sync-signing:"));
+    assert!(enroll_json.get("seed_ciphertext").is_none());
+}
+
+#[test]
 fn cli_trust_discovery_and_tenant_template_round_trip() {
     let root = tempfile::tempdir().expect("tempdir").keep();
     vault_init(&root, "demo", 1).expect("vault init");

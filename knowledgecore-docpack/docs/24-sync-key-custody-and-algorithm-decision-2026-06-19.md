@@ -29,8 +29,9 @@ Use vault-local encrypted key custody rather than environment variables for prod
 - Done: store only encrypted private-key material plus non-secret metadata in schema v12 `sync_signing_keys`.
 - Done: keep the trusted device public key as the verification anchor.
 - Done: require unlock/passphrase availability before signing declared sync heads; locked custody fails closed rather than silently downgrading.
+- Done: expose explicit status and soft-delete surfaces for local encrypted signing-key custody.
 - Support explicit rotation by enrolling a new device key/certificate and marking old signing material retired.
-- Support explicit deletion by removing encrypted private-key material without deleting historical public trust records needed for verification.
+- Done: support explicit deletion by retiring encrypted private-key material without deleting historical public trust records needed for verification.
 
 ## Schema and Compatibility Contract
 - Add an explicit `author_signature_alg` field for newly authored custody-signed Ed25519 heads, with value `ed25519_sync_head_v1`.
@@ -54,6 +55,7 @@ Use vault-local encrypted key custody rather than environment variables for prod
 - Undeclared v3 heads still accept the legacy compatibility fallback.
 - Schema v12 adds `sync_signing_keys` for encrypted local custody metadata and encrypted signing seeds.
 - `trust device enroll-signing-key` creates a verified trusted device, enrolls its certificate, and stores the encrypted matching signing seed without printing secret material.
+- `trust device signing-key-status` and `trust device signing-key-delete` expose custody metadata and explicit local soft-delete without printing secret material; desktop RPC mirrors those status/delete surfaces.
 - S3 sync uses an unlocked custody key to emit declared Ed25519 heads; if no custody key exists, compatibility behavior is preserved.
 
 ## Non-Goals

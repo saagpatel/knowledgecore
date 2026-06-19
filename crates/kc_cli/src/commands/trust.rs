@@ -1,9 +1,10 @@
 use kc_core::app_error::{AppError, AppResult};
 use kc_core::rpc_service::{
     trust_device_enroll_service, trust_device_enroll_signing_key_service,
-    trust_device_list_service, trust_device_verify_chain_service, trust_identity_complete_service,
-    trust_identity_start_service, trust_provider_add_service, trust_provider_disable_service,
-    trust_provider_discover_service, trust_provider_list_service,
+    trust_device_list_service, trust_device_signing_key_delete_service,
+    trust_device_signing_key_status_service, trust_device_verify_chain_service,
+    trust_identity_complete_service, trust_identity_start_service, trust_provider_add_service,
+    trust_provider_disable_service, trust_provider_discover_service, trust_provider_list_service,
     trust_provider_policy_set_service, trust_provider_policy_set_tenant_template_service,
 };
 use std::path::Path;
@@ -137,6 +138,41 @@ pub fn run_device_verify_chain(
         serde_json::to_string_pretty(&serde_json::json!({
             "status": "ok",
             "certificate": out
+        }))
+        .unwrap_or_else(|_| "{}".to_string())
+    );
+    Ok(())
+}
+
+pub fn run_device_signing_key_status(vault_path: &str, device_id: &str) -> AppResult<()> {
+    let out = trust_device_signing_key_status_service(Path::new(vault_path), device_id)?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::json!({
+            "status": "ok",
+            "signing_key": out
+        }))
+        .unwrap_or_else(|_| "{}".to_string())
+    );
+    Ok(())
+}
+
+pub fn run_device_signing_key_delete(
+    vault_path: &str,
+    device_id: &str,
+    now_override: Option<i64>,
+) -> AppResult<()> {
+    let out = trust_device_signing_key_delete_service(
+        Path::new(vault_path),
+        device_id,
+        now_override.unwrap_or_else(now_ms),
+    )?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::json!({
+            "status": "ok",
+            "deleted": out.deleted,
+            "signing_key": out.signing_key
         }))
         .unwrap_or_else(|_| "{}".to_string())
     );

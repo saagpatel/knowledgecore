@@ -350,6 +350,56 @@ fn cli_trust_device_enroll_signing_key_records_custody_metadata() {
 }
 
 #[test]
+fn cli_trust_device_signing_key_rotate_rejects_missing_old_custody() {
+    let root = tempfile::tempdir().expect("tempdir").keep();
+    vault_init(&root, "demo", 1).expect("vault init");
+    let vault_path = root.to_string_lossy().to_string();
+
+    std::env::set_var(
+        "KC_TEST_SYNC_KEY_ROTATE_MISSING_PASSPHRASE",
+        "custody-passphrase",
+    );
+    let rotate = run_cli(&[
+        "trust",
+        "device",
+        "signing-key-rotate",
+        &vault_path,
+        "--old-device-id",
+        "missing-device",
+        "--new-device-label",
+        "desktop-rotated",
+        "--passphrase-env",
+        "KC_TEST_SYNC_KEY_ROTATE_MISSING_PASSPHRASE",
+        "--now-ms",
+        "50",
+    ]);
+    std::env::remove_var("KC_TEST_SYNC_KEY_ROTATE_MISSING_PASSPHRASE");
+    assert!(!rotate.status.success());
+    assert!(
+        String::from_utf8_lossy(&rotate.stderr).contains("KC_SYNC_SIGNING_KEY_NOT_FOUND"),
+        "rotate missing stderr: {}",
+        String::from_utf8_lossy(&rotate.stderr)
+    );
+
+    let listed = run_cli(&["trust", "device", "list", &vault_path]);
+    assert!(
+        listed.status.success(),
+        "list after failed rotate stderr: {}",
+        String::from_utf8_lossy(&listed.stderr)
+    );
+    let listed_json: serde_json::Value =
+        serde_json::from_slice(&listed.stdout).expect("list after failed rotate json");
+    assert_eq!(
+        listed_json
+            .get("devices")
+            .and_then(|v| v.as_array())
+            .expect("devices array")
+            .len(),
+        0
+    );
+}
+
+#[test]
 fn cli_trust_discovery_and_tenant_template_round_trip() {
     let root = tempfile::tempdir().expect("tempdir").keep();
     vault_init(&root, "demo", 1).expect("vault init");

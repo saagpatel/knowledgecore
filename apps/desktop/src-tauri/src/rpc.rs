@@ -162,6 +162,36 @@ pub struct TrustDeviceEnrollRes {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct TrustDeviceEnrollSigningKeyReq {
+    pub vault_path: String,
+    pub device_label: String,
+    pub passphrase: String,
+    pub now_ms: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TrustDeviceSigningKeyRes {
+    pub device_id: String,
+    pub public_key: String,
+    pub signature_alg: String,
+    pub key_reference: String,
+    pub created_at_ms: i64,
+    pub rotated_at_ms: Option<i64>,
+    pub deleted_at_ms: Option<i64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TrustDeviceEnrollSigningKeyRes {
+    pub device_id: String,
+    pub label: String,
+    pub fingerprint: String,
+    pub cert_id: String,
+    pub cert_chain_hash: String,
+    pub signing_key: TrustDeviceSigningKeyRes,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TrustDeviceVerifyChainReq {
     pub vault_path: String,
     pub device_id: String,
@@ -197,6 +227,32 @@ pub struct TrustDeviceListItemRes {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TrustDeviceListRes {
     pub devices: Vec<TrustDeviceListItemRes>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TrustDeviceSigningKeyStatusReq {
+    pub vault_path: String,
+    pub device_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TrustDeviceSigningKeyStatusRes {
+    pub signing_key: Option<TrustDeviceSigningKeyRes>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TrustDeviceSigningKeyDeleteReq {
+    pub vault_path: String,
+    pub device_id: String,
+    pub now_ms: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TrustDeviceSigningKeyDeleteRes {
+    pub deleted: bool,
+    pub signing_key: Option<TrustDeviceSigningKeyRes>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1163,6 +1219,41 @@ pub fn trust_device_enroll_rpc(req: TrustDeviceEnrollReq) -> RpcResponse<TrustDe
     }
 }
 
+fn signing_key_res(
+    status: kc_core::sync_key_custody::SyncSigningKeyStatus,
+) -> TrustDeviceSigningKeyRes {
+    TrustDeviceSigningKeyRes {
+        device_id: status.device_id,
+        public_key: status.public_key,
+        signature_alg: status.signature_alg,
+        key_reference: status.key_reference,
+        created_at_ms: status.created_at_ms,
+        rotated_at_ms: status.rotated_at_ms,
+        deleted_at_ms: status.deleted_at_ms,
+    }
+}
+
+pub fn trust_device_enroll_signing_key_rpc(
+    req: TrustDeviceEnrollSigningKeyReq,
+) -> RpcResponse<TrustDeviceEnrollSigningKeyRes> {
+    match rpc_service::trust_device_enroll_signing_key_service(
+        std::path::Path::new(&req.vault_path),
+        &req.device_label,
+        &req.passphrase,
+        req.now_ms,
+    ) {
+        Ok(out) => RpcResponse::ok(TrustDeviceEnrollSigningKeyRes {
+            device_id: out.device.device_id,
+            label: out.device.label,
+            fingerprint: out.device.fingerprint,
+            cert_id: out.certificate.cert_id,
+            cert_chain_hash: out.certificate.cert_chain_hash,
+            signing_key: signing_key_res(out.signing_key),
+        }),
+        Err(error) => RpcResponse::err(error),
+    }
+}
+
 pub fn trust_device_verify_chain_rpc(
     req: TrustDeviceVerifyChainReq,
 ) -> RpcResponse<TrustDeviceVerifyChainRes> {
@@ -1197,6 +1288,36 @@ pub fn trust_device_list_rpc(req: TrustDeviceListReq) -> RpcResponse<TrustDevice
                     created_at_ms: d.created_at_ms,
                 })
                 .collect(),
+        }),
+        Err(error) => RpcResponse::err(error),
+    }
+}
+
+pub fn trust_device_signing_key_status_rpc(
+    req: TrustDeviceSigningKeyStatusReq,
+) -> RpcResponse<TrustDeviceSigningKeyStatusRes> {
+    match rpc_service::trust_device_signing_key_status_service(
+        std::path::Path::new(&req.vault_path),
+        &req.device_id,
+    ) {
+        Ok(signing_key) => RpcResponse::ok(TrustDeviceSigningKeyStatusRes {
+            signing_key: signing_key.map(signing_key_res),
+        }),
+        Err(error) => RpcResponse::err(error),
+    }
+}
+
+pub fn trust_device_signing_key_delete_rpc(
+    req: TrustDeviceSigningKeyDeleteReq,
+) -> RpcResponse<TrustDeviceSigningKeyDeleteRes> {
+    match rpc_service::trust_device_signing_key_delete_service(
+        std::path::Path::new(&req.vault_path),
+        &req.device_id,
+        req.now_ms,
+    ) {
+        Ok(out) => RpcResponse::ok(TrustDeviceSigningKeyDeleteRes {
+            deleted: out.deleted,
+            signing_key: out.signing_key.map(signing_key_res),
         }),
         Err(error) => RpcResponse::err(error),
     }

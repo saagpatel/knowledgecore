@@ -408,6 +408,17 @@ fn main() {
                     device_id,
                     now_ms,
                 } => commands::trust::run_device_verify_chain(&vault_path, &device_id, now_ms),
+                TrustDeviceCmd::SigningKeyStatus {
+                    vault_path,
+                    device_id,
+                } => commands::trust::run_device_signing_key_status(&vault_path, &device_id),
+                TrustDeviceCmd::SigningKeyDelete {
+                    vault_path,
+                    device_id,
+                    now_ms,
+                } => {
+                    commands::trust::run_device_signing_key_delete(&vault_path, &device_id, now_ms)
+                }
                 TrustDeviceCmd::List { vault_path } => {
                     commands::trust::run_device_list(&vault_path)
                 }

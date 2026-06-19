@@ -32,6 +32,13 @@ pub fn trust_device_enroll(
 }
 
 #[tauri::command]
+pub fn trust_device_enroll_signing_key(
+    req: rpc::TrustDeviceEnrollSigningKeyReq,
+) -> rpc::RpcResponse<rpc::TrustDeviceEnrollSigningKeyRes> {
+    rpc::trust_device_enroll_signing_key_rpc(req)
+}
+
+#[tauri::command]
 pub fn trust_device_verify_chain(
     req: rpc::TrustDeviceVerifyChainReq,
 ) -> rpc::RpcResponse<rpc::TrustDeviceVerifyChainRes> {
@@ -43,6 +50,20 @@ pub fn trust_device_list(
     req: rpc::TrustDeviceListReq,
 ) -> rpc::RpcResponse<rpc::TrustDeviceListRes> {
     rpc::trust_device_list_rpc(req)
+}
+
+#[tauri::command]
+pub fn trust_device_signing_key_status(
+    req: rpc::TrustDeviceSigningKeyStatusReq,
+) -> rpc::RpcResponse<rpc::TrustDeviceSigningKeyStatusRes> {
+    rpc::trust_device_signing_key_status_rpc(req)
+}
+
+#[tauri::command]
+pub fn trust_device_signing_key_delete(
+    req: rpc::TrustDeviceSigningKeyDeleteReq,
+) -> rpc::RpcResponse<rpc::TrustDeviceSigningKeyDeleteRes> {
+    rpc::trust_device_signing_key_delete_rpc(req)
 }
 
 #[tauri::command]

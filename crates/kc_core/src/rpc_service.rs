@@ -34,7 +34,9 @@ use crate::recovery_escrow_private_kms::{
     PrivateKmsRecoveryEscrowConfig, PrivateKmsRecoveryEscrowProvider,
 };
 use crate::resource_limits::{ingest_single_file_limits, scan_folder_limits};
-use crate::sync_key_custody::{store_sync_signing_seed, SyncSigningKeyStatus};
+use crate::sync_key_custody::{
+    delete_sync_signing_key, store_sync_signing_seed, sync_signing_key_status, SyncSigningKeyStatus,
+};
 use crate::trust::{
     trust_device_init, trust_device_init_with_seed, trust_device_list, trust_device_verify,
     TrustedDeviceRecord,
@@ -205,6 +207,12 @@ pub struct TrustDeviceEnrollSigningKeyResult {
     pub device: TrustedDeviceRecord,
     pub certificate: DeviceCertificateRecord,
     pub signing_key: SyncSigningKeyStatus,
+}
+
+#[derive(Debug, Clone)]
+pub struct TrustDeviceSigningKeyDeleteResult {
+    pub deleted: bool,
+    pub signing_key: Option<SyncSigningKeyStatus>,
 }
 
 struct SyncSigningSeed([u8; 32]);
@@ -1152,6 +1160,29 @@ pub fn trust_device_verify_chain_service(
     let vault = vault_open(vault_path)?;
     let conn = open_db(&vault_path.join(vault.db.relative_path))?;
     trust_device_verify_chain(&conn, device_id, now_ms)
+}
+
+pub fn trust_device_signing_key_status_service(
+    vault_path: &Path,
+    device_id: &str,
+) -> AppResult<Option<SyncSigningKeyStatus>> {
+    let vault = vault_open(vault_path)?;
+    let conn = open_db(&vault_path.join(vault.db.relative_path))?;
+    sync_signing_key_status(&conn, device_id)
+}
+
+pub fn trust_device_signing_key_delete_service(
+    vault_path: &Path,
+    device_id: &str,
+    now_ms: i64,
+) -> AppResult<TrustDeviceSigningKeyDeleteResult> {
+    let vault = vault_open(vault_path)?;
+    let conn = open_db(&vault_path.join(vault.db.relative_path))?;
+    let signing_key = delete_sync_signing_key(&conn, device_id, now_ms)?;
+    Ok(TrustDeviceSigningKeyDeleteResult {
+        deleted: signing_key.is_some(),
+        signing_key,
+    })
 }
 
 pub fn trust_device_list_service(vault_path: &Path) -> AppResult<Vec<TrustedDeviceRecord>> {

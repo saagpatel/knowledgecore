@@ -48,6 +48,7 @@ Remote sync heads should be accepted only when authorship is verified against an
 - Added schema v12 `sync_signing_keys` custody storage and CLI/core-service enrollment for encrypted local signing seeds.
 - Added CLI/core-service/desktop RPC status and soft-delete surfaces for encrypted local signing-key custody.
 - Added CLI/core-service/desktop RPC rotation surfaces that enroll a replacement signing device and mark the old local custody row rotated/deleted.
+- Added CLI/core-service/desktop RPC re-enrollment guidance for missing, retired, or deleted local signing-key custody; the guidance states private signing keys are not recoverable and does not add backup, escrow, restore, export, or remote custody behavior.
 - Added the rotation/recovery/fallback-removal decision record as `docs/25-sync-signing-key-rotation-recovery-and-fallback-plan-2026-06-19.md`.
 - Added read-only `sync auth-readiness` CLI/core-service/desktop RPC reporting for local and URI sync targets; it performs no writes, migrations, fallback removal, cloud expansion, or strict-mode enforcement.
 - Added read-only `sync auth-readiness-report` CLI aggregation over multiple targets, with generated fixture coverage for missing targets, legacy schema heads, declared Ed25519 heads, undeclared Ed25519-compatible heads, undeclared legacy fallback heads, unsupported declared algorithms, and invalid declared heads.

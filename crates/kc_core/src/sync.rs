@@ -22,7 +22,7 @@ use crate::vault::{vault_open, VaultJsonV2};
 use ed25519_dalek::{Signer, SigningKey};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::Cursor;
 use std::path::{Component, Path, PathBuf};
@@ -93,6 +93,26 @@ pub enum SyncAuthReadinessClassification {
     Invalid,
 }
 
+impl SyncAuthReadinessClassification {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            SyncAuthReadinessClassification::NoRemoteHead => "no_remote_head",
+            SyncAuthReadinessClassification::LegacySchema => "legacy_schema",
+            SyncAuthReadinessClassification::DeclaredEd25519 => "declared_ed25519",
+            SyncAuthReadinessClassification::UndeclaredEd25519Compatible => {
+                "undeclared_ed25519_compatible"
+            }
+            SyncAuthReadinessClassification::UndeclaredLegacyFallback => {
+                "undeclared_legacy_fallback"
+            }
+            SyncAuthReadinessClassification::UnsupportedDeclaredAlgorithm => {
+                "unsupported_declared_algorithm"
+            }
+            SyncAuthReadinessClassification::Invalid => "invalid",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncAuthReadinessReportV1 {
     pub report_version: i64,
@@ -104,6 +124,18 @@ pub struct SyncAuthReadinessReportV1 {
     pub remote_head: Option<SyncHeadV1>,
     pub error_code: Option<String>,
     pub error_message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncAuthReadinessRolloutReportV1 {
+    pub report_version: i64,
+    pub target_count: i64,
+    pub strict_ready_count: i64,
+    pub strict_blocked_count: i64,
+    pub depends_on_legacy_fallback_count: i64,
+    pub invalid_count: i64,
+    pub classification_counts: BTreeMap<String, i64>,
+    pub reports: Vec<SyncAuthReadinessReportV1>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1653,6 +1685,58 @@ pub fn sync_auth_readiness_target(
     classify_sync_auth_readiness(conn, target.display(), remote_head)
 }
 
+pub fn sync_auth_readiness_targets(
+    conn: &Connection,
+    target_uris: &[String],
+) -> AppResult<SyncAuthReadinessRolloutReportV1> {
+    if target_uris.is_empty() {
+        return Err(sync_error(
+            "KC_SYNC_TARGET_INVALID",
+            "sync auth readiness rollout report requires at least one target",
+            serde_json::json!({}),
+        ));
+    }
+
+    let mut reports = Vec::with_capacity(target_uris.len());
+    let mut classification_counts = BTreeMap::new();
+    let mut strict_ready_count = 0;
+    let mut depends_on_legacy_fallback_count = 0;
+    let mut invalid_count = 0;
+
+    for target_uri in target_uris {
+        let report = sync_auth_readiness_target(conn, target_uri)?;
+        *classification_counts
+            .entry(report.classification.as_str().to_string())
+            .or_insert(0) += 1;
+        if report.strict_ready {
+            strict_ready_count += 1;
+        }
+        if report.depends_on_legacy_fallback {
+            depends_on_legacy_fallback_count += 1;
+        }
+        if matches!(
+            report.classification,
+            SyncAuthReadinessClassification::Invalid
+                | SyncAuthReadinessClassification::UnsupportedDeclaredAlgorithm
+        ) {
+            invalid_count += 1;
+        }
+        reports.push(report);
+    }
+
+    let target_count = reports.len() as i64;
+    Ok(SyncAuthReadinessRolloutReportV1 {
+        report_version: 1,
+        target_count,
+        strict_ready_count,
+        strict_blocked_count: target_count - strict_ready_count,
+        depends_on_legacy_fallback_count,
+        invalid_count,
+        classification_counts,
+        reports,
+    })
+}
+
 fn sync_merge_preview_file_target(
     conn: &Connection,
     vault_path: &Path,
@@ -2552,9 +2636,10 @@ mod tests {
     use super::{
         bytes_to_hex, classify_sync_auth_readiness, ensure_remote_trust_matches,
         legacy_sync_signature, sign_sync_payload, sync_auth_readiness_target,
-        sync_signature_payload, unpack_zip_snapshot, unpack_zip_snapshot_with_limits,
-        validate_snapshot_dir_limits, SyncAuthReadinessClassification, SyncHeadV1,
-        SyncSnapshotResourceLimits, SyncTrustV1, TRUST_MODEL_PASSPHRASE_V1,
+        sync_auth_readiness_targets, sync_signature_payload, unpack_zip_snapshot,
+        unpack_zip_snapshot_with_limits, validate_snapshot_dir_limits, write_head,
+        SyncAuthReadinessClassification, SyncHeadV1, SyncSnapshotResourceLimits, SyncTrustV1,
+        TRUST_MODEL_PASSPHRASE_V1,
     };
     use crate::db::apply_migrations;
     use crate::sync_auth::{
@@ -2827,6 +2912,33 @@ mod tests {
         (conn, trust, head, payload)
     }
 
+    fn canonical_payload_for_head(head: &SyncHeadV1) -> Vec<u8> {
+        canonical_sync_author_payload_v1(&SyncAuthorPayloadV1 {
+            snapshot_id: head.snapshot_id.clone(),
+            manifest_hash: head.manifest_hash.clone(),
+            created_at_ms: head.created_at_ms,
+            author_device_id: head.author_device_id.clone().expect("device id"),
+            author_fingerprint: head.author_fingerprint.clone().expect("fingerprint"),
+            author_cert_id: head.author_cert_id.clone().expect("cert id"),
+            author_chain_hash: head.author_chain_hash.clone().expect("chain hash"),
+        })
+        .expect("canonical payload")
+    }
+
+    fn declared_ed25519_head(key: &SigningKey, mut head: SyncHeadV1) -> SyncHeadV1 {
+        let payload = canonical_payload_for_head(&head);
+        head.author_signature = Some(bytes_to_hex(&key.sign(&payload).to_bytes()));
+        head.author_signature_alg = Some(SYNC_AUTHOR_SIGNATURE_ALG_ED25519_V1.to_string());
+        head
+    }
+
+    fn undeclared_ed25519_head(key: &SigningKey, mut head: SyncHeadV1) -> SyncHeadV1 {
+        let payload = canonical_payload_for_head(&head);
+        head.author_signature = Some(bytes_to_hex(&key.sign(&payload).to_bytes()));
+        head.author_signature_alg = None;
+        head
+    }
+
     #[test]
     fn declared_ed25519_sync_head_rejects_legacy_fallback_signature() {
         let key = SigningKey::from_bytes(&[8u8; 32]);
@@ -2865,16 +2977,7 @@ mod tests {
     fn sync_auth_readiness_declared_ed25519_is_strict_ready() {
         let key = SigningKey::from_bytes(&[8u8; 32]);
         let (conn, _trust, mut head, payload) = trusted_author_fixture(&key);
-        let signed_payload = canonical_sync_author_payload_v1(&SyncAuthorPayloadV1 {
-            snapshot_id: head.snapshot_id.clone(),
-            manifest_hash: head.manifest_hash.clone(),
-            created_at_ms: head.created_at_ms,
-            author_device_id: head.author_device_id.clone().expect("device id"),
-            author_fingerprint: head.author_fingerprint.clone().expect("fingerprint"),
-            author_cert_id: head.author_cert_id.clone().expect("cert id"),
-            author_chain_hash: head.author_chain_hash.clone().expect("chain hash"),
-        })
-        .expect("canonical payload");
+        let signed_payload = canonical_payload_for_head(&head);
         head.author_signature = Some(bytes_to_hex(&key.sign(&signed_payload).to_bytes()));
         head.author_signature_alg = Some(SYNC_AUTHOR_SIGNATURE_ALG_ED25519_V1.to_string());
         assert_ne!(payload, signed_payload);
@@ -2890,6 +2993,28 @@ mod tests {
         assert!(report.strict_ready);
         assert!(!report.depends_on_legacy_fallback);
         assert!(report.remediation.is_none());
+    }
+
+    #[test]
+    fn sync_auth_readiness_undeclared_ed25519_compatible_needs_republish_only() {
+        let key = SigningKey::from_bytes(&[8u8; 32]);
+        let (conn, _trust, head, _legacy_payload) = trusted_author_fixture(&key);
+        let head = undeclared_ed25519_head(&key, head);
+
+        let report =
+            classify_sync_auth_readiness(&conn, "file:///tmp/sync-target".to_string(), Some(head))
+                .expect("readiness report");
+
+        assert_eq!(
+            report.classification,
+            SyncAuthReadinessClassification::UndeclaredEd25519Compatible
+        );
+        assert!(!report.strict_ready);
+        assert!(!report.depends_on_legacy_fallback);
+        assert!(report
+            .remediation
+            .as_deref()
+            .is_some_and(|message| message.contains("author_signature_alg")));
     }
 
     #[test]
@@ -2912,6 +3037,44 @@ mod tests {
     }
 
     #[test]
+    fn sync_auth_readiness_reports_unsupported_and_invalid_declared_heads() {
+        let key = SigningKey::from_bytes(&[8u8; 32]);
+        let (conn, _trust, mut unsupported, payload) = trusted_author_fixture(&key);
+        unsupported.author_signature = Some(legacy_sync_signature(&payload));
+        unsupported.author_signature_alg = Some("ed25519_sync_head_v2".to_string());
+
+        let unsupported_report = classify_sync_auth_readiness(
+            &conn,
+            "file:///tmp/unsupported".to_string(),
+            Some(unsupported),
+        )
+        .expect("unsupported report");
+        assert_eq!(
+            unsupported_report.classification,
+            SyncAuthReadinessClassification::UnsupportedDeclaredAlgorithm
+        );
+        assert_eq!(
+            unsupported_report.error_code.as_deref(),
+            Some("KC_TRUST_SIGNATURE_INVALID")
+        );
+
+        let (_conn_again, _trust_again, mut invalid, payload) = trusted_author_fixture(&key);
+        invalid.author_signature = Some(legacy_sync_signature(&payload));
+        invalid.author_signature_alg = Some(SYNC_AUTHOR_SIGNATURE_ALG_ED25519_V1.to_string());
+        let invalid_report =
+            classify_sync_auth_readiness(&conn, "file:///tmp/invalid".to_string(), Some(invalid))
+                .expect("invalid report");
+        assert_eq!(
+            invalid_report.classification,
+            SyncAuthReadinessClassification::Invalid
+        );
+        assert_eq!(
+            invalid_report.error_code.as_deref(),
+            Some("KC_TRUST_SIGNATURE_INVALID")
+        );
+    }
+
+    #[test]
     fn sync_auth_readiness_missing_head_is_strict_ready_without_remote_mutation() {
         let root = tempfile::tempdir().expect("tempdir");
         let target = root.path().join("sync-target");
@@ -2928,5 +3091,71 @@ mod tests {
         assert!(!report.depends_on_legacy_fallback);
         assert!(report.remote_head.is_none());
         assert!(!target.exists());
+    }
+
+    #[test]
+    fn sync_auth_readiness_rollout_report_summarizes_generated_targets() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let missing_target = root.path().join("missing-target");
+        let legacy_schema_target = root.path().join("legacy-schema-target");
+        let declared_target = root.path().join("declared-target");
+        let unsupported_target = root.path().join("unsupported-target");
+
+        let key = SigningKey::from_bytes(&[8u8; 32]);
+        let (conn, _trust, head, legacy_payload) = trusted_author_fixture(&key);
+
+        let mut legacy_schema_head = head.clone();
+        legacy_schema_head.schema_version = 2;
+        legacy_schema_head.author_signature = None;
+        legacy_schema_head.author_signature_alg = None;
+        write_head(&legacy_schema_target, &legacy_schema_head).expect("write legacy schema head");
+
+        let declared_head = declared_ed25519_head(&key, head.clone());
+        write_head(&declared_target, &declared_head).expect("write declared head");
+
+        let mut unsupported_head = head;
+        unsupported_head.author_signature = Some(legacy_sync_signature(&legacy_payload));
+        unsupported_head.author_signature_alg = Some("ed25519_sync_head_v2".to_string());
+        write_head(&unsupported_target, &unsupported_head).expect("write unsupported head");
+
+        let targets = vec![
+            missing_target.to_string_lossy().to_string(),
+            legacy_schema_target.to_string_lossy().to_string(),
+            declared_target.to_string_lossy().to_string(),
+            unsupported_target.to_string_lossy().to_string(),
+        ];
+        let report = sync_auth_readiness_targets(&conn, &targets).expect("rollout report");
+
+        assert_eq!(report.target_count, 4);
+        assert_eq!(report.strict_ready_count, 2);
+        assert_eq!(report.strict_blocked_count, 2);
+        assert_eq!(report.depends_on_legacy_fallback_count, 1);
+        assert_eq!(report.invalid_count, 1);
+        assert_eq!(report.classification_counts.get("no_remote_head"), Some(&1));
+        assert_eq!(report.classification_counts.get("legacy_schema"), Some(&1));
+        assert_eq!(
+            report.classification_counts.get("declared_ed25519"),
+            Some(&1)
+        );
+        assert_eq!(
+            report
+                .classification_counts
+                .get("unsupported_declared_algorithm"),
+            Some(&1)
+        );
+        assert_eq!(
+            report
+                .reports
+                .iter()
+                .map(|entry| entry.classification.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "no_remote_head",
+                "legacy_schema",
+                "declared_ed25519",
+                "unsupported_declared_algorithm"
+            ]
+        );
+        assert!(!missing_target.exists());
     }
 }

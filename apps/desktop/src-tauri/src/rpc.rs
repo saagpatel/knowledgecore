@@ -1933,22 +1933,7 @@ pub fn sync_status_rpc(req: SyncStatusReq) -> RpcResponse<SyncStatusRes> {
 fn sync_auth_readiness_classification_name(
     classification: kc_core::sync::SyncAuthReadinessClassification,
 ) -> String {
-    match classification {
-        kc_core::sync::SyncAuthReadinessClassification::NoRemoteHead => "no_remote_head",
-        kc_core::sync::SyncAuthReadinessClassification::LegacySchema => "legacy_schema",
-        kc_core::sync::SyncAuthReadinessClassification::DeclaredEd25519 => "declared_ed25519",
-        kc_core::sync::SyncAuthReadinessClassification::UndeclaredEd25519Compatible => {
-            "undeclared_ed25519_compatible"
-        }
-        kc_core::sync::SyncAuthReadinessClassification::UndeclaredLegacyFallback => {
-            "undeclared_legacy_fallback"
-        }
-        kc_core::sync::SyncAuthReadinessClassification::UnsupportedDeclaredAlgorithm => {
-            "unsupported_declared_algorithm"
-        }
-        kc_core::sync::SyncAuthReadinessClassification::Invalid => "invalid",
-    }
-    .to_string()
+    classification.as_str().to_string()
 }
 
 pub fn sync_auth_readiness_rpc(req: SyncAuthReadinessReq) -> RpcResponse<SyncAuthReadinessRes> {

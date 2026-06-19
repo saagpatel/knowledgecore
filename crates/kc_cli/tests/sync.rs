@@ -111,6 +111,56 @@ fn cli_sync_push_and_status_work() {
         readiness_json.get("strict_ready").and_then(|v| v.as_bool()),
         Some(false)
     );
+
+    let empty_target = root.join("empty-sync-target");
+    let readiness_report = Command::new(bin)
+        .args([
+            "sync",
+            "auth-readiness-report",
+            vault_root.to_string_lossy().as_ref(),
+            sync_target.to_string_lossy().as_ref(),
+            empty_target.to_string_lossy().as_ref(),
+        ])
+        .output()
+        .expect("run sync auth-readiness-report");
+    assert!(
+        readiness_report.status.success(),
+        "auth readiness report stderr: {}",
+        String::from_utf8_lossy(&readiness_report.stderr)
+    );
+    let report_json: serde_json::Value =
+        serde_json::from_slice(&readiness_report.stdout).expect("auth readiness report json");
+    assert_eq!(
+        report_json.get("target_count").and_then(|v| v.as_i64()),
+        Some(2)
+    );
+    assert_eq!(
+        report_json
+            .get("strict_ready_count")
+            .and_then(|v| v.as_i64()),
+        Some(1)
+    );
+    assert_eq!(
+        report_json
+            .get("depends_on_legacy_fallback_count")
+            .and_then(|v| v.as_i64()),
+        Some(1)
+    );
+    assert_eq!(
+        report_json
+            .get("classification_counts")
+            .and_then(|v| v.get("legacy_schema"))
+            .and_then(|v| v.as_i64()),
+        Some(1)
+    );
+    assert_eq!(
+        report_json
+            .get("classification_counts")
+            .and_then(|v| v.get("no_remote_head"))
+            .and_then(|v| v.as_i64()),
+        Some(1)
+    );
+    assert!(!empty_target.exists());
 }
 
 #[test]

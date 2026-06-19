@@ -211,6 +211,9 @@ fn cli_trust_device_enroll_signing_key_records_custody_metadata() {
             .and_then(|v| v.as_str()),
         Some(device_id)
     );
+    assert!(status_json
+        .get("recovery_guidance")
+        .is_some_and(|v| v.is_null()));
 
     std::env::set_var("KC_TEST_SYNC_KEY_PASSPHRASE", "custody-passphrase");
     let rotated = run_cli(&[
@@ -282,6 +285,19 @@ fn cli_trust_device_enroll_signing_key_records_custody_metadata() {
         .get("signing_key")
         .unwrap()
         .is_null());
+    let old_recovery_guidance = old_status_after_rotate_json
+        .get("recovery_guidance")
+        .expect("old recovery guidance");
+    assert_eq!(
+        old_recovery_guidance
+            .get("private_key_recoverable")
+            .and_then(|v| v.as_bool()),
+        Some(false)
+    );
+    assert!(old_recovery_guidance
+        .get("summary")
+        .and_then(|v| v.as_str())
+        .is_some_and(|message| message.contains("re-enroll a new local signing device")));
 
     let listed_after_rotate = run_cli(&["trust", "device", "list", &vault_path]);
     assert!(
@@ -327,6 +343,11 @@ fn cli_trust_device_enroll_signing_key_records_custody_metadata() {
         delete_json.get("deleted").and_then(|v| v.as_bool()),
         Some(true)
     );
+    assert!(delete_json
+        .get("recovery_guidance")
+        .and_then(|v| v.get("command"))
+        .and_then(|v| v.as_str())
+        .is_some_and(|command| command.contains("enroll-signing-key")));
 
     let status_after_delete = run_cli(&[
         "trust",
@@ -347,6 +368,11 @@ fn cli_trust_device_enroll_signing_key_records_custody_metadata() {
         .get("signing_key")
         .unwrap()
         .is_null());
+    assert!(status_after_delete_json
+        .get("recovery_guidance")
+        .and_then(|v| v.get("summary"))
+        .and_then(|v| v.as_str())
+        .is_some_and(|message| message.contains("not recoverable")));
 }
 
 #[test]

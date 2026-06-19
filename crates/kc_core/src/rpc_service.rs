@@ -210,10 +210,25 @@ pub struct TrustDeviceEnrollSigningKeyResult {
     pub signing_key: SyncSigningKeyStatus,
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+pub struct SyncSigningKeyRecoveryGuidance {
+    pub reason: String,
+    pub summary: String,
+    pub command: String,
+    pub private_key_recoverable: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct TrustDeviceSigningKeyStatusResult {
+    pub signing_key: Option<SyncSigningKeyStatus>,
+    pub recovery_guidance: Option<SyncSigningKeyRecoveryGuidance>,
+}
+
 #[derive(Debug, Clone)]
 pub struct TrustDeviceSigningKeyDeleteResult {
     pub deleted: bool,
     pub signing_key: Option<SyncSigningKeyStatus>,
+    pub recovery_guidance: Option<SyncSigningKeyRecoveryGuidance>,
 }
 
 #[derive(Debug, Clone)]
@@ -1180,13 +1195,34 @@ pub fn trust_device_verify_chain_service(
     trust_device_verify_chain(&conn, device_id, now_ms)
 }
 
+fn sync_signing_key_recovery_guidance(
+    device_id: &str,
+    reason: &str,
+) -> SyncSigningKeyRecoveryGuidance {
+    SyncSigningKeyRecoveryGuidance {
+        reason: reason.to_string(),
+        summary: "local sync signing private-key custody is not recoverable; re-enroll a new local signing device after restoring or opening the vault".to_string(),
+        command: format!(
+            "trust device enroll-signing-key <vault_path> --device-label replacement-for-{device_id} --passphrase-env <env_var>; then republish affected sync targets"
+        ),
+        private_key_recoverable: false,
+    }
+}
+
 pub fn trust_device_signing_key_status_service(
     vault_path: &Path,
     device_id: &str,
-) -> AppResult<Option<SyncSigningKeyStatus>> {
+) -> AppResult<TrustDeviceSigningKeyStatusResult> {
     let vault = vault_open(vault_path)?;
     let conn = open_db(&vault_path.join(vault.db.relative_path))?;
-    sync_signing_key_status(&conn, device_id)
+    let signing_key = sync_signing_key_status(&conn, device_id)?;
+    let recovery_guidance = signing_key
+        .is_none()
+        .then(|| sync_signing_key_recovery_guidance(device_id, "missing_or_retired"));
+    Ok(TrustDeviceSigningKeyStatusResult {
+        signing_key,
+        recovery_guidance,
+    })
 }
 
 pub fn trust_device_signing_key_delete_service(
@@ -1200,6 +1236,10 @@ pub fn trust_device_signing_key_delete_service(
     Ok(TrustDeviceSigningKeyDeleteResult {
         deleted: signing_key.is_some(),
         signing_key,
+        recovery_guidance: Some(sync_signing_key_recovery_guidance(
+            device_id,
+            "deleted_or_missing",
+        )),
     })
 }
 

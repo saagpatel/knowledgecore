@@ -181,6 +181,14 @@ pub struct TrustDeviceSigningKeyRes {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct SyncSigningKeyRecoveryGuidanceRes {
+    pub reason: String,
+    pub summary: String,
+    pub command: String,
+    pub private_key_recoverable: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct TrustDeviceEnrollSigningKeyRes {
     pub device_id: String,
     pub label: String,
@@ -239,6 +247,7 @@ pub struct TrustDeviceSigningKeyStatusReq {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TrustDeviceSigningKeyStatusRes {
     pub signing_key: Option<TrustDeviceSigningKeyRes>,
+    pub recovery_guidance: Option<SyncSigningKeyRecoveryGuidanceRes>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -253,6 +262,7 @@ pub struct TrustDeviceSigningKeyDeleteReq {
 pub struct TrustDeviceSigningKeyDeleteRes {
     pub deleted: bool,
     pub signing_key: Option<TrustDeviceSigningKeyRes>,
+    pub recovery_guidance: Option<SyncSigningKeyRecoveryGuidanceRes>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1274,6 +1284,17 @@ fn signing_key_res(
     }
 }
 
+fn signing_key_recovery_guidance_res(
+    guidance: kc_core::rpc_service::SyncSigningKeyRecoveryGuidance,
+) -> SyncSigningKeyRecoveryGuidanceRes {
+    SyncSigningKeyRecoveryGuidanceRes {
+        reason: guidance.reason,
+        summary: guidance.summary,
+        command: guidance.command,
+        private_key_recoverable: guidance.private_key_recoverable,
+    }
+}
+
 pub fn trust_device_enroll_signing_key_rpc(
     req: TrustDeviceEnrollSigningKeyReq,
 ) -> RpcResponse<TrustDeviceEnrollSigningKeyRes> {
@@ -1341,8 +1362,9 @@ pub fn trust_device_signing_key_status_rpc(
         std::path::Path::new(&req.vault_path),
         &req.device_id,
     ) {
-        Ok(signing_key) => RpcResponse::ok(TrustDeviceSigningKeyStatusRes {
-            signing_key: signing_key.map(signing_key_res),
+        Ok(out) => RpcResponse::ok(TrustDeviceSigningKeyStatusRes {
+            signing_key: out.signing_key.map(signing_key_res),
+            recovery_guidance: out.recovery_guidance.map(signing_key_recovery_guidance_res),
         }),
         Err(error) => RpcResponse::err(error),
     }
@@ -1359,6 +1381,7 @@ pub fn trust_device_signing_key_delete_rpc(
         Ok(out) => RpcResponse::ok(TrustDeviceSigningKeyDeleteRes {
             deleted: out.deleted,
             signing_key: out.signing_key.map(signing_key_res),
+            recovery_guidance: out.recovery_guidance.map(signing_key_recovery_guidance_res),
         }),
         Err(error) => RpcResponse::err(error),
     }

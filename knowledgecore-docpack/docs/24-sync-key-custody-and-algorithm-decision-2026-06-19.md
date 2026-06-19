@@ -57,6 +57,7 @@ Use vault-local encrypted key custody rather than environment variables for prod
 - Schema v12 adds `sync_signing_keys` for encrypted local custody metadata and encrypted signing seeds.
 - `trust device enroll-signing-key` creates a verified trusted device, enrolls its certificate, and stores the encrypted matching signing seed without printing secret material.
 - `trust device signing-key-status` and `trust device signing-key-delete` expose custody metadata and explicit local soft-delete without printing secret material; desktop RPC mirrors those status/delete surfaces.
+- Missing, retired, or deleted local signing-key custody returns explicit re-enrollment guidance that says private signing keys are not recoverable; no backup, escrow, restore, export, or remote custody behavior is added.
 - `trust device signing-key-rotate` creates a replacement signing device and certificate, stores the new encrypted seed, then marks the old local custody row rotated/deleted while leaving old public trust records readable.
 - S3 sync uses an unlocked custody key to emit declared Ed25519 heads; if no custody key exists, compatibility behavior is preserved.
 - Read-only `sync auth-readiness` CLI/core-service/desktop RPC reporting classifies local and URI sync targets without writes, migrations, fallback removal, cloud expansion, or strict-mode enforcement.
@@ -77,7 +78,7 @@ Use vault-local encrypted key custody rather than environment variables for prod
 - Any vault metadata/schema change requires fixtures, downgrade/rollback expectations, and no private-document ingestion.
 
 ## Next Safe Lane
-Use `sync auth-readiness-report` evidence to design the next approval-gated strict-mode or fallback-removal rollout; do not enforce strict mode, remove fallback, change schema, or add private-key recovery without that approval.
+Use `sync auth-readiness-report` evidence to design the next approval-gated strict-mode or fallback-removal rollout; do not enforce strict mode, remove fallback, change schema, or add private-key backup/recovery without that approval.
 
 ## Verification Expectations for the Next Code Lane
 - `cargo fmt --all -- --check`
@@ -90,4 +91,4 @@ Use `sync auth-readiness-report` evidence to design the next approval-gated stri
 - `node scripts/dependency-watch.mjs`
 
 ## Done Criteria
-This lane is done when encrypted local custody, custody-signed declared S3 heads, replacement-device rotation, read-only auth-readiness reporting, generated rollout evidence, and compatibility fallback preservation are verified, with recovery and undeclared legacy fallback removal still approval-gated.
+This lane is done when encrypted local custody, custody-signed declared S3 heads, replacement-device rotation, read-only auth-readiness reporting, generated rollout evidence, re-enrollment guidance for missing/deleted custody, and compatibility fallback preservation are verified, with private-key backup/recovery and undeclared legacy fallback removal still approval-gated.

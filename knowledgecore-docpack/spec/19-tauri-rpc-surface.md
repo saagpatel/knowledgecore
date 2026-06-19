@@ -95,6 +95,8 @@ Versioned RPC surface v1, envelope schema, and determinism notes.
            - `conservative_plus_v2` emits `schema_version=2`; `conservative_plus_v3` emits `schema_version=3`; `conservative_plus_v4` emits `schema_version=4`, each with deterministic `decision_trace`
          - trust_provider_discover (deterministic issuer bootstrap to provider record)
          - trust_policy_set_tenant_template (deterministic canonical tenant claim template)
+         - trust_device_signing_key_status, trust_device_signing_key_delete
+           - responses may include `recovery_guidance` when local sync signing custody is missing, retired, or deleted; guidance is operator copy only and does not expose private signing material
          - lineage_query
          - lineage_query_v2
          - lineage_overlay_add, lineage_overlay_remove, lineage_overlay_list

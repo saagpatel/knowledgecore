@@ -64,6 +64,7 @@ Capture the current security/readiness state after the June 2026 audit, first de
 - Local sync signing key custody is now implemented behind explicit trust-device enrollment: schema v12 adds `sync_signing_keys`, private Ed25519 seeds are encrypted with XChaCha20-Poly1305 using the vault unlock passphrase boundary, CLI/desktop surfaces expose enrollment/status/soft-delete/rotation controls, and S3 sync emits `author_signature_alg = "ed25519_sync_head_v1"` only when the custody key is unlocked and matches the verified local author device.
 - Read-only sync auth readiness reporting is now exposed through CLI/core-service/desktop RPC and classifies remote heads without writes, migrations, fallback removal, cloud expansion, or strict-mode enforcement.
 - Sync auth rollout evidence now includes generated readiness fixtures and a multi-target CLI summary that counts strict-ready, strict-blocked, legacy-fallback-dependent, invalid, and per-classification targets without creating missing targets.
+- Sync signing-key status/delete surfaces now return explicit re-enrollment guidance when local custody is missing, retired, or deleted; the guidance states private signing keys are not recoverable and does not add export, escrow, restore, cloud custody, or sync writer behavior.
 - Recovery verification now decrypts `key_blob.enc` with the recovery phrase-derived key, checks the deterministic recovery nonce, rejects empty restored passphrases, and includes regressions for matching-hash forged blobs that cannot decrypt.
 - DB encryption lifecycle tests now pin unsupported mode/KDF rejection, idempotent already-encrypted migration detection, wrong-key failure for encrypted DB migration, and absence of stale `.sqlcipher.tmp` / `.pre-sqlcipher.bak` artifacts after successful migration.
 - SQLCipher production state semantics are captured as an approval-gated design note in `docs/21-sqlcipher-state-model-plan-2026-06-19.md`; the documented decision is a future `vault.json` v4 `db_encryption.state` boundary, with no schema or runtime behavior changed in this lane.
@@ -91,7 +92,7 @@ Capture the current security/readiness state after the June 2026 audit, first de
 - Do not promote S3 sync, managed identity, or recovery escrow to production-ready until their current risk items are resolved and verified.
 
 ## Next Recommended Lane
-1. Use generated rollout evidence from `sync auth-readiness-report` to decide the next approval gate before any private-key recovery, strict-mode enforcement, or undeclared legacy fallback removal.
+1. Use generated rollout evidence from `sync auth-readiness-report` to decide the next approval gate before any private-key backup/recovery design, strict-mode enforcement, or undeclared legacy fallback removal.
 2. Decide whether to proceed with the v4 `db_encryption.state` schema implementation and compatibility fixtures.
 3. Decide whether non-OCR PDF page-count limits are needed beyond the current PDF byte and OCR page-count guardrails.
 4. Plan the next RustSec review before `2026-07-19`, especially the GTK3/Tauri Linux backend chain and the remaining macro/unicode transitives.

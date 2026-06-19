@@ -9,6 +9,7 @@ Define the approval gate and current implementation boundary for moving encrypte
 - `trust device enroll-signing-key` creates a verified trusted device, enrolls its certificate, and stores the encrypted matching Ed25519 seed.
 - CLI and desktop RPC expose custody status, soft-delete, and replacement-device rotation controls without returning secret material.
 - `trust device signing-key-rotate` and matching desktop RPC rotation create a replacement signing device/certificate, store the new encrypted local seed, and mark the old local custody row rotated/deleted.
+- `trust device signing-key-status` and `trust device signing-key-delete` now return explicit re-enrollment guidance when local custody is missing, retired, or deleted; the guidance states private signing keys are not recoverable.
 - Custody-signed S3 sync heads emit `author_signature_alg = "ed25519_sync_head_v1"`.
 - Undeclared v3 sync heads still accept the legacy BLAKE3-derived compatibility signature.
 - No remote private-key custody, background sync, cloud sync expansion, or fallback removal is implemented.
@@ -30,6 +31,7 @@ Recovery should be local re-enrollment, not private signing-key backup.
 - If local signing custody is lost, re-enroll a new local signing device after restoring/opening the vault.
 - Preserve old public trust records for historical verification, but treat lost private signing seeds as unrecoverable.
 - Recovery UX should say that local signing authority was re-created, not restored from backup.
+- Done: CLI/core-service/desktop RPC status/delete surfaces return guidance to re-enroll a replacement local signing device and republish affected sync targets when custody is missing, retired, or deleted.
 - Any future private-key backup or remote custody design requires a separate threat model, secret-handling design, fixtures, and explicit approval.
 
 ## Fallback Removal Decision
@@ -44,7 +46,7 @@ Legacy undeclared v3 signatures can be removed only after compatibility evidence
 ## Safest Implementation Sequence
 1. Done: add explicit rotation command/RPC that enrolls a new signing device and soft-deletes the old custody row only after the new key verifies.
 2. Done: add a read-only sync auth readiness report for local sync targets; no writes, no migrations, no cloud behavior changes.
-3. Add UI/CLI copy for local re-enrollment recovery when custody is missing or deleted.
+3. Done: add CLI/core-service/desktop RPC copy for local re-enrollment recovery when custody is missing, retired, or deleted.
 4. Done: add compatibility fixtures for missing targets, legacy schema heads, undeclared v3 heads, declared Ed25519 heads, and invalid/unsupported declared heads.
 5. Add opt-in strict mode for rejecting undeclared legacy fallback before making it default.
 
@@ -61,7 +63,7 @@ Legacy undeclared v3 signatures can be removed only after compatibility evidence
 - Done: rotation creates a new trusted device and leaves old public trust records readable.
 - Done: rotation rejects missing active old custody before creating replacement material.
 - Current implementation wraps replacement device creation, certificate enrollment, new custody storage, and old custody retirement in one transaction so late failures do not commit partial rotation state.
-- Deleted/lost custody produces clear locked/missing-key behavior without silently downgrading declared-head signing.
+- Done: deleted/lost custody produces clear re-enrollment guidance without silently downgrading declared-head signing or exposing private seed material.
 - Recovery re-enrollment can author a new declared Ed25519 head without requiring old private seed material.
 - Future fallback-removal strict mode rejects undeclared legacy signatures while preserving declared Ed25519 acceptance.
 - Fixtures prove old declared heads remain verifiable after old private custody is deleted.

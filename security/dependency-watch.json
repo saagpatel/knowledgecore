@@ -4,7 +4,6 @@
     { "name": "tauri-utils", "fail_on_update": true, "group": "direct" },
     { "name": "lancedb", "fail_on_update": true, "group": "direct" },
     { "name": "lance", "fail_on_update": false, "group": "transitive" },
-    { "name": "lance-index", "fail_on_update": false, "group": "transitive" },
-    { "name": "tantivy", "fail_on_update": false, "group": "transitive" }
+    { "name": "lance-index", "fail_on_update": false, "group": "transitive" }
   ]
 }

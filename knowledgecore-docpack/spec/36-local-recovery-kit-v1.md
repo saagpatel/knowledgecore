@@ -7,6 +7,7 @@ Define local-only recovery bundle contracts for restoring vault encryption acces
 - Recovery bundles are generated to a user-selected local directory only.
 - Bundle manifests are canonical JSON with deterministic field ordering.
 - Recovery verification hard-fails on phrase mismatch or bundle tampering.
+- Recovery verification decrypts `key_blob.enc` with the phrase-derived key, validates the deterministic recovery nonce, and rejects undecryptable or empty restored passphrases.
 - Recovery artifacts never auto-upload to sync targets.
 
 ## Non-goals
@@ -56,6 +57,7 @@ Define local-only recovery bundle contracts for restoring vault encryption acces
 - Bundle generation emits required files and valid manifest.
 - Verify succeeds with correct phrase and fails with `KC_RECOVERY_PHRASE_INVALID` on mismatch.
 - Tampered bundle fails with `KC_RECOVERY_BUNDLE_INVALID`.
+- Matching-hash forged blobs that cannot decrypt, or whose nonce no longer matches the manifest context, fail with `KC_RECOVERY_BUNDLE_INVALID`.
 - Recovery schema validation tests pass.
 
 ## Rollout gate and stop conditions

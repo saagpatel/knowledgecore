@@ -5,11 +5,11 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-arrow-array = "57.0"
-arrow-schema = "57.0"
+arrow-array = "58.0"
+arrow-schema = "58.0"
 futures = "0.3"
 kc_core = { path = "../kc_core" }
-lancedb = "0.27"
+lancedb = "0.30"
 rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true

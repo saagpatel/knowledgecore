@@ -429,6 +429,11 @@ pub enum SyncCmd {
         #[arg(required = true)]
         target_paths: Vec<String>,
     },
+    AuthStrictCheck {
+        vault_path: String,
+        #[arg(required = true)]
+        target_paths: Vec<String>,
+    },
     Push {
         vault_path: String,
         target_path: String,
@@ -440,6 +445,8 @@ pub enum SyncCmd {
         target_path: String,
         #[arg(long = "auto-merge")]
         auto_merge: Option<String>,
+        #[arg(long = "strict-auth")]
+        strict_auth: bool,
         #[arg(long = "now-ms")]
         now_ms: i64,
     },

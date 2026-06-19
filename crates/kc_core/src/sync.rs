@@ -1671,6 +1671,32 @@ fn legacy_match_for_head(head: &SyncHeadV1) -> AppResult<bool> {
     Ok(legacy_sync_signature(&payload) == author_signature)
 }
 
+fn ensure_strict_sync_auth_ready(
+    conn: &Connection,
+    target_path: String,
+    remote_head: &SyncHeadV1,
+) -> AppResult<()> {
+    let report =
+        classify_sync_auth_readiness(conn, target_path.clone(), Some(remote_head.clone()))?;
+    if report.strict_ready {
+        return Ok(());
+    }
+
+    Err(sync_error(
+        "KC_SYNC_AUTH_STRICT_BLOCKED",
+        "strict sync auth rejected remote head",
+        serde_json::json!({
+            "target_path": target_path,
+            "snapshot_id": remote_head.snapshot_id,
+            "classification": report.classification.as_str(),
+            "depends_on_legacy_fallback": report.depends_on_legacy_fallback,
+            "remediation": report.remediation,
+            "source_code": report.error_code,
+            "source_message": report.error_message
+        }),
+    ))
+}
+
 pub fn sync_auth_readiness_target(
     conn: &Connection,
     target_uri: &str,
@@ -1735,6 +1761,30 @@ pub fn sync_auth_readiness_targets(
         classification_counts,
         reports,
     })
+}
+
+pub fn sync_auth_strict_check_targets(
+    conn: &Connection,
+    target_uris: &[String],
+) -> AppResult<SyncAuthReadinessRolloutReportV1> {
+    let report = sync_auth_readiness_targets(conn, target_uris)?;
+    if report.strict_blocked_count == 0 {
+        return Ok(report);
+    }
+
+    Err(sync_error(
+        "KC_SYNC_AUTH_STRICT_BLOCKED",
+        "one or more sync targets are not ready for strict sync auth",
+        serde_json::json!({
+            "report_version": report.report_version,
+            "target_count": report.target_count,
+            "strict_ready_count": report.strict_ready_count,
+            "strict_blocked_count": report.strict_blocked_count,
+            "depends_on_legacy_fallback_count": report.depends_on_legacy_fallback_count,
+            "invalid_count": report.invalid_count,
+            "classification_counts": report.classification_counts,
+        }),
+    ))
 }
 
 fn sync_merge_preview_file_target(
@@ -2181,6 +2231,7 @@ fn sync_pull_with_mode(
     target_path: &Path,
     now_ms: i64,
     auto_merge_mode: Option<SyncAutoMergeMode>,
+    strict_auth: bool,
 ) -> AppResult<SyncPullResultV1> {
     ensure_sync_tables(conn)?;
     let db_path = main_db_path(conn)?;
@@ -2192,6 +2243,9 @@ fn sync_pull_with_mode(
             serde_json::json!({ "target_path": target_path }),
         )
     })?;
+    if strict_auth {
+        ensure_strict_sync_auth_ready(conn, target_path.display().to_string(), &remote_head)?;
+    }
 
     let seen_remote = read_state(conn, "sync_remote_head_seen")?;
     let last_applied_manifest = read_state(conn, "sync_last_applied_manifest_hash")?;
@@ -2320,7 +2374,7 @@ pub fn sync_pull(
     target_path: &Path,
     now_ms: i64,
 ) -> AppResult<SyncPullResultV1> {
-    sync_pull_with_mode(conn, vault_path, target_path, now_ms, None)
+    sync_pull_with_mode(conn, vault_path, target_path, now_ms, None, false)
 }
 
 fn sync_pull_s3_target(
@@ -2329,6 +2383,7 @@ fn sync_pull_s3_target(
     transport: S3SyncTransport,
     now_ms: i64,
     auto_merge_mode: Option<SyncAutoMergeMode>,
+    strict_auth: bool,
 ) -> AppResult<SyncPullResultV1> {
     ensure_sync_tables(conn)?;
     let db_path = main_db_path(conn)?;
@@ -2343,6 +2398,9 @@ fn sync_pull_s3_target(
         )
     })?;
     ensure_remote_trust_matches(conn, Some(&remote_head), &local_trust)?;
+    if strict_auth {
+        ensure_strict_sync_auth_ready(conn, transport.target().display(), &remote_head)?;
+    }
 
     let seen_remote = read_state(conn, "sync_remote_head_seen")?;
     let last_applied_manifest = read_state(conn, "sync_last_applied_manifest_hash")?;
@@ -2445,6 +2503,9 @@ fn sync_pull_s3_target(
             )
         })?;
         ensure_remote_trust_matches(conn, Some(&remote_head_locked), &local_trust)?;
+        if strict_auth {
+            ensure_strict_sync_auth_ready(conn, transport.target().display(), &remote_head_locked)?;
+        }
 
         if should_conflict(
             Some(&remote_head_locked),
@@ -2606,7 +2667,7 @@ pub fn sync_pull_target(
     target_uri: &str,
     now_ms: i64,
 ) -> AppResult<SyncPullResultV1> {
-    sync_pull_target_with_mode(conn, vault_path, target_uri, now_ms, None)
+    sync_pull_target_with_mode(conn, vault_path, target_uri, now_ms, None, false)
 }
 
 pub fn sync_pull_target_with_mode(
@@ -2615,18 +2676,25 @@ pub fn sync_pull_target_with_mode(
     target_uri: &str,
     now_ms: i64,
     auto_merge_mode: Option<&str>,
+    strict_auth: bool,
 ) -> AppResult<SyncPullResultV1> {
     let mode = parse_auto_merge_mode(auto_merge_mode)?;
     match SyncTargetUri::parse(target_uri)? {
-        SyncTargetUri::FilePath { path } => {
-            sync_pull_with_mode(conn, vault_path, Path::new(&path), now_ms, mode)
-        }
+        SyncTargetUri::FilePath { path } => sync_pull_with_mode(
+            conn,
+            vault_path,
+            Path::new(&path),
+            now_ms,
+            mode,
+            strict_auth,
+        ),
         SyncTargetUri::S3 { bucket, prefix } => sync_pull_s3_target(
             conn,
             vault_path,
             S3SyncTransport::new(bucket, prefix),
             now_ms,
             mode,
+            strict_auth,
         ),
     }
 }
@@ -2635,11 +2703,11 @@ pub fn sync_pull_target_with_mode(
 mod tests {
     use super::{
         bytes_to_hex, classify_sync_auth_readiness, ensure_remote_trust_matches,
-        legacy_sync_signature, sign_sync_payload, sync_auth_readiness_target,
-        sync_auth_readiness_targets, sync_signature_payload, unpack_zip_snapshot,
-        unpack_zip_snapshot_with_limits, validate_snapshot_dir_limits, write_head,
-        SyncAuthReadinessClassification, SyncHeadV1, SyncSnapshotResourceLimits, SyncTrustV1,
-        TRUST_MODEL_PASSPHRASE_V1,
+        ensure_strict_sync_auth_ready, legacy_sync_signature, sign_sync_payload,
+        sync_auth_readiness_target, sync_auth_readiness_targets, sync_signature_payload,
+        unpack_zip_snapshot, unpack_zip_snapshot_with_limits, validate_snapshot_dir_limits,
+        write_head, SyncAuthReadinessClassification, SyncHeadV1, SyncSnapshotResourceLimits,
+        SyncTrustV1, TRUST_MODEL_PASSPHRASE_V1,
     };
     use crate::db::apply_migrations;
     use crate::sync_auth::{
@@ -2974,6 +3042,30 @@ mod tests {
     }
 
     #[test]
+    fn strict_sync_auth_rejects_undeclared_legacy_fallback() {
+        let key = SigningKey::from_bytes(&[8u8; 32]);
+        let (conn, _trust, mut head, payload) = trusted_author_fixture(&key);
+        head.author_signature = Some(legacy_sync_signature(&payload));
+
+        let err = ensure_strict_sync_auth_ready(&conn, "s3://demo-bucket/kc".to_string(), &head)
+            .expect_err("strict auth must reject undeclared legacy fallback");
+
+        assert_eq!(err.code, "KC_SYNC_AUTH_STRICT_BLOCKED");
+        assert_eq!(
+            err.details
+                .get("classification")
+                .and_then(|value| value.as_str()),
+            Some("undeclared_legacy_fallback")
+        );
+        assert_eq!(
+            err.details
+                .get("depends_on_legacy_fallback")
+                .and_then(|value| value.as_bool()),
+            Some(true)
+        );
+    }
+
+    #[test]
     fn sync_auth_readiness_declared_ed25519_is_strict_ready() {
         let key = SigningKey::from_bytes(&[8u8; 32]);
         let (conn, _trust, mut head, payload) = trusted_author_fixture(&key);
@@ -3155,6 +3247,76 @@ mod tests {
                 "declared_ed25519",
                 "unsupported_declared_algorithm"
             ]
+        );
+        assert!(!missing_target.exists());
+    }
+
+    #[test]
+    fn sync_auth_strict_check_blocks_non_ready_targets_without_writes() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let legacy_schema_target = root.path().join("legacy-schema-target");
+        let declared_target = root.path().join("declared-target");
+
+        let key = SigningKey::from_bytes(&[8u8; 32]);
+        let (conn, _trust, head, _legacy_payload) = trusted_author_fixture(&key);
+
+        let mut legacy_schema_head = head.clone();
+        legacy_schema_head.schema_version = 2;
+        legacy_schema_head.author_signature = None;
+        legacy_schema_head.author_signature_alg = None;
+        write_head(&legacy_schema_target, &legacy_schema_head).expect("write legacy schema head");
+
+        let declared_head = declared_ed25519_head(&key, head);
+        write_head(&declared_target, &declared_head).expect("write declared head");
+
+        let targets = vec![
+            legacy_schema_target.to_string_lossy().to_string(),
+            declared_target.to_string_lossy().to_string(),
+        ];
+        let err = super::sync_auth_strict_check_targets(&conn, &targets)
+            .expect_err("strict auth gate should block legacy schema target");
+
+        assert_eq!(err.code, "KC_SYNC_AUTH_STRICT_BLOCKED");
+        assert_eq!(
+            err.details
+                .get("strict_blocked_count")
+                .and_then(|v| v.as_i64()),
+            Some(1)
+        );
+        assert_eq!(
+            err.details
+                .get("classification_counts")
+                .and_then(|v| v.get("legacy_schema"))
+                .and_then(|v| v.as_i64()),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn sync_auth_strict_check_accepts_ready_targets_without_creating_missing_target() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let missing_target = root.path().join("missing-target");
+        let declared_target = root.path().join("declared-target");
+
+        let key = SigningKey::from_bytes(&[8u8; 32]);
+        let (conn, _trust, head, _legacy_payload) = trusted_author_fixture(&key);
+
+        let declared_head = declared_ed25519_head(&key, head);
+        write_head(&declared_target, &declared_head).expect("write declared head");
+
+        let targets = vec![
+            missing_target.to_string_lossy().to_string(),
+            declared_target.to_string_lossy().to_string(),
+        ];
+        let report =
+            super::sync_auth_strict_check_targets(&conn, &targets).expect("strict auth gate");
+
+        assert_eq!(report.target_count, 2);
+        assert_eq!(report.strict_blocked_count, 0);
+        assert_eq!(report.classification_counts.get("no_remote_head"), Some(&1));
+        assert_eq!(
+            report.classification_counts.get("declared_ed25519"),
+            Some(&1)
         );
         assert!(!missing_target.exists());
     }

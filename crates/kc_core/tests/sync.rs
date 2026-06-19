@@ -352,6 +352,7 @@ fn sync_pull_with_conservative_auto_merge_applies_disjoint_changes() {
         sync_target.to_string_lossy().as_ref(),
         301,
         Some("conservative"),
+        false,
     )
     .expect("pull with conservative merge");
     assert!(!merged.snapshot_id.is_empty());
@@ -385,6 +386,7 @@ fn sync_pull_with_conservative_plus_v2_auto_merge_applies_disjoint_changes() {
         sync_target.to_string_lossy().as_ref(),
         301,
         Some("conservative_plus_v2"),
+        false,
     )
     .expect("pull with conservative_plus_v2 merge");
     assert!(!merged.snapshot_id.is_empty());
@@ -418,6 +420,7 @@ fn sync_pull_with_conservative_plus_v3_auto_merge_applies_disjoint_changes() {
         sync_target.to_string_lossy().as_ref(),
         301,
         Some("conservative_plus_v3"),
+        false,
     )
     .expect("pull with conservative_plus_v3 merge");
     assert!(!merged.snapshot_id.is_empty());
@@ -451,6 +454,7 @@ fn sync_pull_with_conservative_plus_v4_auto_merge_applies_disjoint_changes() {
         sync_target.to_string_lossy().as_ref(),
         301,
         Some("conservative_plus_v4"),
+        false,
     )
     .expect("pull with conservative_plus_v4 merge");
     assert!(!merged.snapshot_id.is_empty());

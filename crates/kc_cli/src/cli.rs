@@ -420,6 +420,10 @@ pub enum SyncCmd {
         vault_path: String,
         target_path: String,
     },
+    AuthReadiness {
+        vault_path: String,
+        target_path: String,
+    },
     Push {
         vault_path: String,
         target_path: String,

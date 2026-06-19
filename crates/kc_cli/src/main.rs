@@ -221,6 +221,10 @@ fn main() {
                 vault_path,
                 target_path,
             } => commands::sync::run_status(&vault_path, &target_path),
+            SyncCmd::AuthReadiness {
+                vault_path,
+                target_path,
+            } => commands::sync::run_auth_readiness(&vault_path, &target_path),
             SyncCmd::Push {
                 vault_path,
                 target_path,

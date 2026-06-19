@@ -124,6 +124,56 @@ fn build_blob(
     Ok(blob)
 }
 
+fn decrypt_recovery_blob(
+    vault_id: &str,
+    created_at_ms: i64,
+    phrase: &str,
+    blob: &[u8],
+    blob_path: &Path,
+) -> AppResult<Vec<u8>> {
+    if !blob.starts_with(RECOVERY_MAGIC) || blob.len() <= RECOVERY_MAGIC.len() + RECOVERY_NONCE_LEN
+    {
+        return Err(recovery_error(
+            "KC_RECOVERY_BUNDLE_INVALID",
+            "recovery key blob has invalid format",
+            serde_json::json!({ "path": blob_path, "len": blob.len() }),
+        ));
+    }
+
+    let nonce = &blob[RECOVERY_MAGIC.len()..RECOVERY_MAGIC.len() + RECOVERY_NONCE_LEN];
+    let expected_nonce = recovery_nonce(vault_id, created_at_ms);
+    if nonce != expected_nonce {
+        return Err(recovery_error(
+            "KC_RECOVERY_BUNDLE_INVALID",
+            "recovery key blob nonce does not match manifest",
+            serde_json::json!({ "path": blob_path }),
+        ));
+    }
+
+    let ciphertext = &blob[RECOVERY_MAGIC.len() + RECOVERY_NONCE_LEN..];
+    let key = recovery_phrase_key(vault_id, phrase);
+    let cipher = XChaCha20Poly1305::new(Key::from_slice(&key));
+    let plaintext = cipher
+        .decrypt(XNonce::from_slice(nonce), ciphertext)
+        .map_err(|e| {
+            recovery_error(
+                "KC_RECOVERY_BUNDLE_INVALID",
+                "failed decrypting recovery key blob",
+                serde_json::json!({ "error": e.to_string(), "path": blob_path }),
+            )
+        })?;
+
+    if plaintext.is_empty() {
+        return Err(recovery_error(
+            "KC_RECOVERY_BUNDLE_INVALID",
+            "recovery key blob decrypted to empty passphrase",
+            serde_json::json!({ "path": blob_path }),
+        ));
+    }
+
+    Ok(plaintext)
+}
+
 pub fn generate_recovery_bundle(
     vault_id: &str,
     output_dir: &Path,
@@ -328,14 +378,6 @@ pub fn verify_recovery_bundle(
             serde_json::json!({ "error": e.to_string(), "path": blob_path }),
         )
     })?;
-    if !blob.starts_with(RECOVERY_MAGIC) || blob.len() <= RECOVERY_MAGIC.len() + RECOVERY_NONCE_LEN
-    {
-        return Err(recovery_error(
-            "KC_RECOVERY_BUNDLE_INVALID",
-            "recovery key blob has invalid format",
-            serde_json::json!({ "path": blob_path, "len": blob.len() }),
-        ));
-    }
 
     let actual_hash = blake3_hex_prefixed(&blob);
     if actual_hash != manifest.payload_hash {
@@ -361,5 +403,40 @@ pub fn verify_recovery_bundle(
         ));
     }
 
+    decrypt_recovery_blob(
+        expected_vault_id,
+        manifest.created_at_ms,
+        phrase,
+        &blob,
+        &blob_path,
+    )?;
+
     Ok(manifest)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn recovery_blob_decrypts_to_original_passphrase() {
+        let blob = build_blob(
+            "vault-id",
+            100,
+            "vault-passphrase",
+            "00112233-44556677-8899aabb-ccddeeff",
+        )
+        .expect("build blob");
+
+        let restored = decrypt_recovery_blob(
+            "vault-id",
+            100,
+            "00112233-44556677-8899aabb-ccddeeff",
+            &blob,
+            Path::new("key_blob.enc"),
+        )
+        .expect("decrypt blob");
+
+        assert_eq!(restored, b"vault-passphrase");
+    }
 }

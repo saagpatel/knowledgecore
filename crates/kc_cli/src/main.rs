@@ -392,6 +392,17 @@ fn main() {
                     device_label,
                     now_ms,
                 } => commands::trust::run_device_enroll(&vault_path, &device_label, now_ms),
+                TrustDeviceCmd::EnrollSigningKey {
+                    vault_path,
+                    device_label,
+                    passphrase_env,
+                    now_ms,
+                } => commands::trust::run_device_enroll_signing_key(
+                    &vault_path,
+                    &device_label,
+                    &passphrase_env,
+                    now_ms,
+                ),
                 TrustDeviceCmd::VerifyChain {
                     vault_path,
                     device_id,

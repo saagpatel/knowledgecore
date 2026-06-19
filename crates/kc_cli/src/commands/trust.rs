@@ -1,8 +1,9 @@
-use kc_core::app_error::AppResult;
+use kc_core::app_error::{AppError, AppResult};
 use kc_core::rpc_service::{
-    trust_device_enroll_service, trust_device_list_service, trust_device_verify_chain_service,
-    trust_identity_complete_service, trust_identity_start_service, trust_provider_add_service,
-    trust_provider_disable_service, trust_provider_discover_service, trust_provider_list_service,
+    trust_device_enroll_service, trust_device_enroll_signing_key_service,
+    trust_device_list_service, trust_device_verify_chain_service, trust_identity_complete_service,
+    trust_identity_start_service, trust_provider_add_service, trust_provider_disable_service,
+    trust_provider_discover_service, trust_provider_list_service,
     trust_provider_policy_set_service, trust_provider_policy_set_tenant_template_service,
 };
 use std::path::Path;
@@ -74,6 +75,47 @@ pub fn run_device_enroll(
             "status": "ok",
             "device": out.device,
             "certificate": out.certificate
+        }))
+        .unwrap_or_else(|_| "{}".to_string())
+    );
+    Ok(())
+}
+
+fn passphrase_from_env(passphrase_env: &str) -> AppResult<String> {
+    std::env::var(passphrase_env)
+        .ok()
+        .filter(|v| !v.is_empty())
+        .ok_or_else(|| {
+            AppError::new(
+                "KC_ENCRYPTION_REQUIRED",
+                "encryption",
+                "passphrase env var is missing or empty",
+                false,
+                serde_json::json!({ "passphrase_env": passphrase_env }),
+            )
+        })
+}
+
+pub fn run_device_enroll_signing_key(
+    vault_path: &str,
+    device_label: &str,
+    passphrase_env: &str,
+    now_override: Option<i64>,
+) -> AppResult<()> {
+    let passphrase = passphrase_from_env(passphrase_env)?;
+    let out = trust_device_enroll_signing_key_service(
+        Path::new(vault_path),
+        device_label,
+        &passphrase,
+        now_override.unwrap_or_else(now_ms),
+    )?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::json!({
+            "status": "ok",
+            "device": out.device,
+            "certificate": out.certificate,
+            "signing_key": out.signing_key
         }))
         .unwrap_or_else(|_| "{}".to_string())
     );

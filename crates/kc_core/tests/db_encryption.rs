@@ -144,7 +144,7 @@ fn db_encryption_key_validation_is_deterministic() {
 
     std::env::set_var("KC_VAULT_DB_PASSPHRASE", "correct-passphrase");
     let conn = open_db(&vault_paths(&root).db).expect("open encrypted db with passphrase");
-    assert_eq!(schema_version(&conn).expect("schema version"), 11);
+    assert_eq!(schema_version(&conn).expect("schema version"), 12);
     drop(conn);
 
     std::env::set_var("KC_VAULT_DB_PASSPHRASE", "wrong-passphrase");
@@ -174,7 +174,7 @@ fn db_unlock_session_allows_open_without_env() {
     db_unlock(&root, &db_path, "correct-passphrase").expect("db unlock");
     assert!(db_is_unlocked(&root));
     let conn = open_db(&db_path).expect("open db with unlock session");
-    assert_eq!(schema_version(&conn).expect("schema version"), 11);
+    assert_eq!(schema_version(&conn).expect("schema version"), 12);
     drop(conn);
 
     db_lock(&root).expect("db lock");
@@ -209,7 +209,7 @@ fn db_migration_to_sqlcipher_requires_valid_key_after_migrate() {
 
     std::env::set_var("KC_VAULT_DB_PASSPHRASE", "migration-passphrase");
     let conn = open_db(&db_path).expect("open migrated encrypted db");
-    assert_eq!(schema_version(&conn).expect("schema version"), 11);
+    assert_eq!(schema_version(&conn).expect("schema version"), 12);
 
     std::env::remove_var("KC_VAULT_DB_PASSPHRASE");
     std::env::remove_var("KC_VAULT_PASSPHRASE");

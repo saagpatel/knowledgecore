@@ -24,16 +24,20 @@ Define sync head schema v3 with managed-identity-backed device certificate autho
   - `author_device_id`
   - `author_fingerprint`
   - `author_signature`
+  - `author_signature_alg` (optional; currently `ed25519_sync_head_v1`)
   - `author_cert_id`
   - `author_chain_hash`
 - Validation rules:
   - all required authorship fields present for v3
   - chain hash must match enrolled certificate chain
-  - signature must verify against canonical signing payload
+  - declared `author_signature_alg = "ed25519_sync_head_v1"` must verify against canonical signing payload and must not fall back to legacy signature compatibility
+  - unknown non-empty `author_signature_alg` values fail closed
+  - undeclared v3 signatures remain compatibility-only during the legacy fallback window
 
 ## Determinism and version-boundary rules
 - v3 payload canonicalization order is fixed.
 - Signature input bytes are canonical-json and stable.
+- Custody-signed writes emit `author_signature_alg = "ed25519_sync_head_v1"`; env-key compatibility writes remain undeclared until key-custody rollout is complete.
 - Any signing input shape changes require schema version bump.
 - v2 compatibility remains read-only for migration period.
 

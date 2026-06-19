@@ -6,12 +6,12 @@ Capture the approval-gated implementation contract for fixing sync head authorsh
 ## Verified Current Behavior
 - `SyncHeadV1` stores `author_device_id`, `author_fingerprint`, `author_signature`, `author_cert_id`, and `author_chain_hash` for schema version 3 heads.
 - `sync_signature_payload` canonicalizes public sync fields: `snapshot_id`, `manifest_hash`, `created_at_ms`, device id, fingerprint, certificate id, and chain hash.
-- `sign_sync_payload` now uses Ed25519 when `KC_SYNC_AUTHOR_SIGNING_KEY_HEX` is provided and matches the verified local author device public key.
-- If no signing key env var is present, `sign_sync_payload` still emits the legacy 128-character BLAKE3-derived pseudo-signature for compatibility.
+- `sign_sync_payload` now uses Ed25519 when encrypted local custody has an unlocked matching device key, or when `KC_SYNC_AUTHOR_SIGNING_KEY_HEX` is provided and matches the verified local author device public key.
+- If no unlocked custody key or signing key env var is present, `sign_sync_payload` still emits the legacy 128-character BLAKE3-derived pseudo-signature for compatibility.
 - `ensure_remote_trust_matches` now prefers Ed25519 verification against the local trusted-device public key and verified certificate chain, then falls back to the legacy pseudo-signature for existing v3 heads.
 - `author_signature_alg = "ed25519_sync_head_v1"` is supported as an optional v3 extension. When present, Ed25519 verification is mandatory and legacy fallback is forbidden; unknown non-empty algorithms are rejected.
 - `expected_cert_chain_hash` is also derived from public certificate/device/fingerprint fields.
-- Trusted devices store an Ed25519 public key in `trusted_devices.pubkey`, but the generated private signing key is not persisted by the current trust-device flow.
+- Trusted devices store an Ed25519 public key in `trusted_devices.pubkey`; explicit `trust device enroll-signing-key` enrollment now persists the matching private signing seed encrypted in schema v12 `sync_signing_keys`.
 
 ## Security Risk
 Legacy v3 author signatures still prove deterministic formatting, not authorship. A party that can write a remote sync head and snapshot can recompute the legacy `author_signature` from public fields, so the compatibility fallback must not be treated as production-grade signed sync. Ed25519-authored heads are now verifiable, but full production enforcement still depends on key custody and fallback-removal decisions.
@@ -20,8 +20,8 @@ Legacy v3 author signatures still prove deterministic formatting, not authorship
 Remote sync heads should be accepted only when authorship is verified against an approved trust chain and a real Ed25519 signature over a versioned canonical sync payload.
 
 ## Required Design Decisions
-- Key custody: choose how the local Ed25519 private key is generated, stored, unlocked, rotated, backed up, and deleted without relying on an env var.
-- Wire compatibility: `author_signature_alg` is implemented as an optional schema-version-3 extension for read/validation; writer behavior is still unchanged until key custody is approved.
+- Key custody: implemented for initial local storage/unlock/delete primitives using encrypted vault-local custody; rotation and backup/recovery policy remain future work.
+- Wire compatibility: `author_signature_alg` is implemented as an optional schema-version-3 extension for read/validation and custody-signed S3 writes.
 - Trust source: decide whether remote author certificates must already exist in the local DB, be carried in the signed snapshot, or be verified through another explicit trust-import flow.
 - Certificate state: define how expiration, revocation, and provider/session status affect sync acceptance.
 - Rollout: define read/write compatibility for existing v1/v2/v3 heads and the exact point at which legacy BLAKE3-derived v3 signatures become hard failures.
@@ -31,7 +31,8 @@ Remote sync heads should be accepted only when authorship is verified against an
 2. Done: add non-migrating verification helpers that reject tampered payloads, unknown keys, malformed signatures, fingerprint mismatches, and chain mismatches.
 3. Done: add compatible runtime support that signs with Ed25519 only when an explicit env-provided signing key matches the verified local author device.
 4. Done: add optional algorithm parsing and strict declared-Ed25519 acceptance semantics.
-5. Remaining: approve key custody, remote trust import, and the point at which undeclared legacy BLAKE3-derived author signatures become hard failures.
+5. Done: add initial encrypted local key custody and declared-algorithm writer emission when the custody key is unlocked.
+6. Remaining: approve rotation/recovery semantics, remote trust import, and the point at which undeclared legacy BLAKE3-derived author signatures become hard failures.
 
 ## Implementation Checkpoint
 - Added a private `kc_core::sync_auth` helper module for future Ed25519 signed-head work.
@@ -41,7 +42,9 @@ Remote sync heads should be accepted only when authorship is verified against an
 - Wired compatible runtime acceptance: Ed25519 is preferred for v3 remote heads and legacy BLAKE3-derived signatures remain accepted for existing heads.
 - Wired compatible runtime emission: S3 sync emits Ed25519 signatures only when `KC_SYNC_AUTHOR_SIGNING_KEY_HEX` is explicitly provided and matches the verified local author device key; otherwise it keeps legacy emission.
 - Wired optional `author_signature_alg` parsing for v3 heads; declared `ed25519_sync_head_v1` heads require Ed25519 success, and unknown algorithms fail closed.
-- No sync head schema, vault storage, private-key persistence, remote trust bootstrapping, or cloud behavior changed in this checkpoint.
+- Added schema v12 `sync_signing_keys` custody storage and CLI/core-service enrollment for encrypted local signing seeds.
+- S3 sync emits declared Ed25519 heads when the custody key is available through the vault unlock/passphrase boundary.
+- No cloud behavior, remote trust bootstrapping, background sync, or legacy fallback removal changed in this checkpoint.
 
 ## Verification Expectations
 - `cargo test -p kc_core --test sync`
@@ -55,6 +58,6 @@ Remote sync heads should be accepted only when authorship is verified against an
 
 ## Approval Gates
 - Do not remove the legacy v3 signature fallback, change sync head schema, or change vault storage without explicit design approval.
-- Do not persist private keys until key custody is approved.
+- Do not extend private-key persistence beyond the initial encrypted local custody model without explicit rotation/recovery/delete design approval.
 - Do not introduce background sync, automatic cloud sync, or new remote trust bootstrapping in this lane.
 - Do not mark S3 sync or managed identity production-ready until signed-head acceptance, recovery, and resource-limit gates are green.

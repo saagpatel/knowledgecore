@@ -127,7 +127,19 @@ pub fn trust_device_init(
         )
     })?;
 
-    let signing_key = SigningKey::from_bytes(&seed);
+    let device = trust_device_init_with_seed(conn, device_label, actor, now_ms, &seed);
+    seed.fill(0);
+    device
+}
+
+pub(crate) fn trust_device_init_with_seed(
+    conn: &Connection,
+    device_label: &str,
+    actor: &str,
+    now_ms: i64,
+    seed: &[u8; 32],
+) -> AppResult<TrustedDeviceRecord> {
+    let signing_key = SigningKey::from_bytes(seed);
     let verifying_key = signing_key.verifying_key();
     let pubkey_bytes = verifying_key.to_bytes();
     let pubkey_hex = bytes_to_hex(&pubkey_bytes);

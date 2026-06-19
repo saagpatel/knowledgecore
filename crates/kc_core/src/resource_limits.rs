@@ -8,6 +8,7 @@ pub const SCAN_FOLDER_MAX_FILES: usize = 10_000;
 pub const SCAN_FOLDER_MAX_DEPTH: usize = 12;
 pub const PDF_INPUT_MAX_BYTES: usize = 100 * MIB;
 pub const PDF_EXTRACTED_TEXT_MAX_BYTES: usize = 25 * MIB;
+pub const OCR_MAX_PAGES: usize = 100;
 pub const SYNC_SNAPSHOT_MAX_ARCHIVE_BYTES: usize = 2 * 1024 * MIB;
 pub const SYNC_SNAPSHOT_MAX_ENTRIES: usize = 250_000;
 pub const SYNC_SNAPSHOT_MAX_ENTRY_BYTES: u64 = (250 * MIB) as u64;

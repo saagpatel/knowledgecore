@@ -1,6 +1,8 @@
 use kc_core::services::{ExtractInput, ExtractService, ToolchainIdentity};
 use kc_core::types::DocId;
-use kc_extract::ocr::{ocr_pdf_via_images, should_run_ocr, OcrConfig};
+use kc_extract::ocr::{
+    ocr_pdf_via_images, should_run_ocr, validate_ocr_page_count, OcrConfig, OcrResourceLimits,
+};
 use kc_extract::pdf::{
     extract_pdf_text, extract_pdf_text_with_limits, PdfResourceLimits, PdfiumConfig,
 };
@@ -105,6 +107,14 @@ fn pdf_resource_limits_reject_generated_oversized_extracted_text() {
         }),
     )
     .expect_err("oversized generated extracted text should fail");
+
+    assert_eq!(err.code, "KC_RESOURCE_LIMIT_EXCEEDED");
+}
+
+#[test]
+fn ocr_resource_limits_reject_generated_oversized_page_count() {
+    let err = validate_ocr_page_count(101, OcrResourceLimits { max_pages: 100 })
+        .expect_err("oversized generated page count should fail");
 
     assert_eq!(err.code, "KC_RESOURCE_LIMIT_EXCEEDED");
 }

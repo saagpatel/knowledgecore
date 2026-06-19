@@ -66,16 +66,16 @@ Capture the current security/readiness state after the June 2026 audit, first de
 - Recovery restore drill and resource guardrails are captured as an approval-gated implementation plan in `docs/22-recovery-drill-and-resource-guardrails-plan-2026-06-19.md`; the plan uses generated fixtures only and does not change runtime limits, vault formats, or cloud behavior.
 - Generated-fixture recovery restore drill tests now prove the recovery blob restores the vault passphrase and that the restored passphrase decrypts a generated encrypted object-store fixture; missing bundle-file coverage is pinned with `KC_RECOVERY_BUNDLE_INVALID`.
 - Opt-in resource-limit helpers and generated-fixture tests now cover ingest byte limits, sync snapshot zip archive/entry limits, PDF extraction input/output byte limits, and vector batch/text limits with `KC_RESOURCE_LIMIT_EXCEEDED`.
-- Approved production resource-limit defaults and first CLI/RPC wiring slice are captured in `docs/23-production-resource-limits-decision-2026-06-19.md`; CLI/RPC ingest, S3 sync pull zip extraction, and CLI index rebuild now pass default limits.
+- Approved production resource-limit defaults and wiring slices are captured in `docs/23-production-resource-limits-decision-2026-06-19.md`; CLI/RPC ingest, default PDF byte extraction, OCR page-count validation, S3 sync pull zip extraction, filesystem snapshot directory apply preflight, and CLI index rebuild now pass default limits.
 
 ## Current Risk Posture
 - Critical: sync head v3 authorship is still not a cryptographic Ed25519 signature. The current implementation derives the author signature from public BLAKE3 inputs.
 - High: object-store KDF metadata still has a constant default salt id. Any per-vault random salt change requires explicit migration design approval.
 - High: SQLCipher enable/migrate lifecycle has status-only state derivation and a v4 explicit-state decision, but persisting `db_encryption.state` remains approval-gated.
-- Medium: recovery verification, generated-fixture restore drill coverage, opt-in resource-limit tests, and the first approved production resource-limit wiring slice are in place; PDF/OCR production wiring and filesystem snapshot directory size/count limits remain.
+- Medium: recovery verification, generated-fixture restore drill coverage, opt-in resource-limit tests, and approved production resource-limit wiring slices are in place; future resource-limit work should focus on compatibility tuning and any newly approved surfaces.
 - Medium: AWS recovery escrow code remains emulation-gated at runtime despite docs describing an AWS SDK backend.
 - Medium: OIDC/device identity flows remain local/simulated unless a real token/JWKS verification design is approved.
-- Medium: sync snapshot extraction, recursive ingest, PDF/OCR extraction, and vector persistence still need resource guardrails.
+- Medium: PDF/OCR extraction now has byte and OCR page-count guardrails; maximum page limits for non-OCR PDF text extraction remain a future design decision if needed.
 - Medium: RustSec still reports 16 reviewed informational warnings, mostly GTK3/Tauri Linux backend transitives plus macro/unicode transitives; they are policy-gated for review by `2026-07-19`.
 
 ## Approval Gates
@@ -88,6 +88,6 @@ Capture the current security/readiness state after the June 2026 audit, first de
 ## Next Recommended Lane
 1. Decide key custody and schema transition for wiring Ed25519 signed sync heads into runtime acceptance.
 2. Decide whether to proceed with the v4 `db_encryption.state` schema implementation and compatibility fixtures.
-3. Finish remaining approved resource-limit wiring for PDF/OCR production extraction and filesystem snapshot directory size/count enforcement.
+3. Decide whether non-OCR PDF page-count limits are needed beyond the current PDF byte and OCR page-count guardrails.
 4. Plan the next RustSec review before `2026-07-19`, especially the GTK3/Tauri Linux backend chain and the remaining macro/unicode transitives.
 5. Restore repo-local UI dependencies in a non-blocked environment if local `pnpm lint`, `pnpm test`, and `pnpm -C apps/desktop/ui build` must be run exactly in place rather than from a temp deploy.

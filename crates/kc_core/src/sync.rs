@@ -4,6 +4,7 @@ use crate::db::open_db;
 use crate::export::{export_bundle, ExportOptions};
 use crate::hashing::blake3_hex_prefixed;
 use crate::resource_limits::sync_snapshot_limits;
+use crate::sync_auth::verify_sync_head_author_signature_v1;
 use crate::sync_merge::{
     ensure_conservative_merge_safe, ensure_conservative_plus_v2_merge_safe,
     ensure_conservative_plus_v3_merge_safe, ensure_conservative_plus_v4_merge_safe,
@@ -12,8 +13,10 @@ use crate::sync_merge::{
 };
 use crate::sync_s3::S3SyncTransport;
 use crate::sync_transport::{FsSyncTransport, SyncTargetUri, SyncTransport};
+use crate::trust;
 use crate::trust_identity;
 use crate::vault::{vault_open, VaultJsonV2};
+use ed25519_dalek::{Signer, SigningKey};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -1019,7 +1022,7 @@ fn bytes_to_hex(bytes: &[u8]) -> String {
     out
 }
 
-fn sign_sync_payload(payload: &[u8]) -> String {
+fn legacy_sync_signature(payload: &[u8]) -> String {
     let h1 = blake3::hash(payload);
     let mut second_seed = Vec::with_capacity(16 + payload.len());
     second_seed.extend_from_slice(b"kc.sync.sig.v1\n");
@@ -1029,6 +1032,82 @@ fn sign_sync_payload(payload: &[u8]) -> String {
     sig.push_str(&bytes_to_hex(h1.as_bytes()));
     sig.push_str(&bytes_to_hex(h2.as_bytes()));
     sig
+}
+
+fn parse_lower_hex_fixed<const N: usize>(
+    value: &str,
+    field: &str,
+    code: &str,
+) -> AppResult<[u8; N]> {
+    if value.len() != N * 2
+        || !value
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
+    {
+        return Err(sync_error(
+            code,
+            "hex value has invalid shape",
+            serde_json::json!({
+                "field": field,
+                "expected_hex_chars": N * 2,
+                "actual_hex_chars": value.len()
+            }),
+        ));
+    }
+
+    let mut out = [0u8; N];
+    for (idx, slot) in out.iter_mut().enumerate() {
+        let start = idx * 2;
+        *slot = u8::from_str_radix(&value[start..start + 2], 16).map_err(|e| {
+            sync_error(
+                code,
+                "hex value contains invalid byte",
+                serde_json::json!({
+                    "field": field,
+                    "index": idx,
+                    "error": e.to_string()
+                }),
+            )
+        })?;
+    }
+    Ok(out)
+}
+
+fn sign_sync_payload(
+    conn: &Connection,
+    author_device_id: &str,
+    payload: &[u8],
+) -> AppResult<String> {
+    let Ok(seed_hex) = std::env::var("KC_SYNC_AUTHOR_SIGNING_KEY_HEX") else {
+        return Ok(legacy_sync_signature(payload));
+    };
+    let seed = parse_lower_hex_fixed::<32>(
+        seed_hex.trim(),
+        "KC_SYNC_AUTHOR_SIGNING_KEY_HEX",
+        "KC_SYNC_AUTH_FAILED",
+    )?;
+    let signing_key = SigningKey::from_bytes(&seed);
+    let expected_pubkey =
+        trust::trusted_device_public_key(conn, author_device_id).map_err(|e| {
+            sync_error(
+                "KC_SYNC_AUTH_FAILED",
+                "failed resolving trusted device key for sync signing",
+                serde_json::json!({
+                    "source_code": e.code,
+                    "source_message": e.message,
+                    "author_device_id": author_device_id
+                }),
+            )
+        })?;
+    let actual_pubkey = bytes_to_hex(&signing_key.verifying_key().to_bytes());
+    if actual_pubkey != expected_pubkey {
+        return Err(sync_error(
+            "KC_SYNC_AUTH_FAILED",
+            "sync signing key does not match trusted author device",
+            serde_json::json!({ "author_device_id": author_device_id }),
+        ));
+    }
+    Ok(bytes_to_hex(&signing_key.sign(payload).to_bytes()))
 }
 
 #[derive(Debug, Clone)]
@@ -1064,7 +1143,7 @@ fn local_sync_author(conn: &Connection) -> AppResult<SyncAuthorV3> {
 }
 
 fn ensure_remote_trust_matches(
-    _conn: &Connection,
+    conn: &Connection,
     remote_head: Option<&SyncHeadV1>,
     local: &SyncTrustV1,
 ) -> AppResult<()> {
@@ -1166,14 +1245,15 @@ fn ensure_remote_trust_matches(
             author_cert_id,
             author_chain_hash,
         )?;
-        let expected_signature = sign_sync_payload(&payload);
-        if expected_signature != author_signature {
+        let legacy_signature = legacy_sync_signature(&payload);
+        if verify_sync_head_author_signature_v1(conn, head).is_err()
+            && legacy_signature != author_signature
+        {
             return Err(sync_error(
                 "KC_TRUST_SIGNATURE_INVALID",
                 "sync head v3 signature mismatch",
                 serde_json::json!({
                     "snapshot_id": head.snapshot_id,
-                    "expected": expected_signature,
                     "actual": author_signature
                 }),
             ));
@@ -1695,15 +1775,19 @@ fn sync_push_s3_target(
             trust: Some(local_trust.clone()),
             author_device_id: Some(local_author.device_id.clone()),
             author_fingerprint: Some(local_author.fingerprint.clone()),
-            author_signature: Some(sign_sync_payload(&sync_signature_payload(
-                &snapshot_id,
-                &local_manifest_hash,
-                now_ms,
+            author_signature: Some(sign_sync_payload(
+                conn,
                 &local_author.device_id,
-                &local_author.fingerprint,
-                &local_author.cert_id,
-                &local_author.chain_hash,
-            )?)),
+                &sync_signature_payload(
+                    &snapshot_id,
+                    &local_manifest_hash,
+                    now_ms,
+                    &local_author.device_id,
+                    &local_author.fingerprint,
+                    &local_author.cert_id,
+                    &local_author.chain_hash,
+                )?,
+            )?),
             author_cert_id: Some(local_author.cert_id.clone()),
             author_chain_hash: Some(local_author.chain_hash.clone()),
         };
@@ -2210,11 +2294,20 @@ pub fn sync_pull_target_with_mode(
 #[cfg(test)]
 mod tests {
     use super::{
-        unpack_zip_snapshot, unpack_zip_snapshot_with_limits, validate_snapshot_dir_limits,
-        SyncSnapshotResourceLimits,
+        bytes_to_hex, sign_sync_payload, sync_signature_payload, unpack_zip_snapshot,
+        unpack_zip_snapshot_with_limits, validate_snapshot_dir_limits, SyncSnapshotResourceLimits,
     };
+    use crate::db::apply_migrations;
+    use crate::trust::format_device_fingerprint;
+    use ed25519_dalek::{Signer, SigningKey};
     use std::io::Write;
+    use std::sync::{Mutex, OnceLock};
     use zip::write::SimpleFileOptions;
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
 
     fn zip_bytes(entries: &[(&str, &[u8])]) -> Vec<u8> {
         let mut bytes = std::io::Cursor::new(Vec::new());
@@ -2326,5 +2419,39 @@ mod tests {
         .expect_err("oversized snapshot dir entry should fail");
 
         assert_eq!(err.code, "KC_RESOURCE_LIMIT_EXCEEDED");
+    }
+
+    #[test]
+    fn sync_signing_uses_env_ed25519_key_when_it_matches_trusted_device() {
+        let _guard = env_lock().lock().expect("env lock");
+        let conn = rusqlite::Connection::open_in_memory().expect("open db");
+        apply_migrations(&conn).expect("migrations");
+        let key = SigningKey::from_bytes(&[7u8; 32]);
+        let device_id = "device-1";
+        let pubkey_hex = bytes_to_hex(&key.verifying_key().to_bytes());
+        let fingerprint = format_device_fingerprint(&key.verifying_key().to_bytes());
+        conn.execute(
+            "INSERT INTO trusted_devices(device_id, label, pubkey, fingerprint, verified_at_ms, created_at_ms)
+             VALUES(?1, 'fixture', ?2, ?3, 10, 9)",
+            rusqlite::params![device_id, pubkey_hex, fingerprint],
+        )
+        .expect("insert trusted device");
+
+        std::env::set_var("KC_SYNC_AUTHOR_SIGNING_KEY_HEX", bytes_to_hex(&[7u8; 32]));
+        let payload = sync_signature_payload(
+            "blake3:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "blake3:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            123456789,
+            device_id,
+            &fingerprint,
+            "cert-1",
+            "blake3:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        )
+        .expect("payload");
+
+        let signature = sign_sync_payload(&conn, device_id, &payload).expect("sign");
+        let expected = bytes_to_hex(&key.sign(&payload).to_bytes());
+        assert_eq!(signature, expected);
+        std::env::remove_var("KC_SYNC_AUTHOR_SIGNING_KEY_HEX");
     }
 }

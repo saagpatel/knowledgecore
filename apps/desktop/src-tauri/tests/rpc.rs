@@ -247,6 +247,7 @@ fn rpc_trust_device_signing_key_custody_round_trip() {
             let signing_key = data.signing_key.expect("signing key status");
             assert_eq!(signing_key.device_id, device_id);
             assert_eq!(signing_key.deleted_at_ms, None);
+            assert!(data.recovery_guidance.is_none());
         }
         RpcResponse::Err { error } => panic!("signing key status failed: {}", error.code),
     }
@@ -275,7 +276,16 @@ fn rpc_trust_device_signing_key_custody_round_trip() {
         vault_path: vault_path.clone(),
         device_id: device_id.clone(),
     }) {
-        RpcResponse::Ok { data } => assert!(data.signing_key.is_none()),
+        RpcResponse::Ok { data } => {
+            assert!(data.signing_key.is_none());
+            let guidance = data.recovery_guidance.expect("old recovery guidance");
+            assert_eq!(guidance.reason, "missing_or_retired");
+            assert!(!guidance.private_key_recoverable);
+            assert!(guidance
+                .summary
+                .contains("re-enroll a new local signing device"));
+            assert!(guidance.command.contains("enroll-signing-key"));
+        }
         RpcResponse::Err { error } => {
             panic!("old signing key status after rotate failed: {}", error.code)
         }
@@ -304,6 +314,11 @@ fn rpc_trust_device_signing_key_custody_round_trip() {
                 data.signing_key.expect("deleted signing key").device_id,
                 new_device_id
             );
+            let guidance = data.recovery_guidance.expect("delete recovery guidance");
+            assert_eq!(guidance.reason, "deleted_or_missing");
+            assert!(!guidance.private_key_recoverable);
+            assert!(guidance.command.contains("enroll-signing-key"));
+            assert!(guidance.command.contains("republish affected sync targets"));
         }
         RpcResponse::Err { error } => panic!("signing key delete failed: {}", error.code),
     }
@@ -312,7 +327,14 @@ fn rpc_trust_device_signing_key_custody_round_trip() {
         vault_path,
         device_id: new_device_id,
     }) {
-        RpcResponse::Ok { data } => assert!(data.signing_key.is_none()),
+        RpcResponse::Ok { data } => {
+            assert!(data.signing_key.is_none());
+            assert!(data
+                .recovery_guidance
+                .expect("deleted recovery guidance")
+                .summary
+                .contains("not recoverable"));
+        }
         RpcResponse::Err { error } => {
             panic!("signing key status after delete failed: {}", error.code)
         }

@@ -151,7 +151,8 @@ pub fn run_device_signing_key_status(vault_path: &str, device_id: &str) -> AppRe
         "{}",
         serde_json::to_string_pretty(&serde_json::json!({
             "status": "ok",
-            "signing_key": out
+            "signing_key": out.signing_key,
+            "recovery_guidance": out.recovery_guidance
         }))
         .unwrap_or_else(|_| "{}".to_string())
     );
@@ -173,7 +174,8 @@ pub fn run_device_signing_key_delete(
         serde_json::to_string_pretty(&serde_json::json!({
             "status": "ok",
             "deleted": out.deleted,
-            "signing_key": out.signing_key
+            "signing_key": out.signing_key,
+            "recovery_guidance": out.recovery_guidance
         }))
         .unwrap_or_else(|_| "{}".to_string())
     );

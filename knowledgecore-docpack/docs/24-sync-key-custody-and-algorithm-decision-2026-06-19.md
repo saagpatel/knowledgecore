@@ -5,7 +5,7 @@ Define the approval-gated design lane for moving sync authorship from compatible
 
 ## Verified Current State
 - `SyncHeadV1` currently has `schema_version`, `snapshot_id`, `manifest_hash`, `created_at_ms`, `trust`, `author_device_id`, `author_fingerprint`, `author_signature`, `author_cert_id`, and `author_chain_hash`.
-- There is no persisted `author_signature_alg` field today.
+- `author_signature_alg` is now accepted as an optional schema-version-3 extension on read/validation, but writers still omit it.
 - `sync_auth::canonical_sync_author_payload_v1` domain-separates Ed25519 payloads with `signature_alg = "ed25519_sync_head_v1"` inside the canonical bytes.
 - `verify_sync_head_author_signature_v1` verifies v3 author fields against the trusted device public key and verified certificate chain.
 - `ensure_remote_trust_matches` prefers Ed25519 verification, then accepts the legacy BLAKE3-derived signature when Ed25519 verification fails.
@@ -33,18 +33,25 @@ Use vault-local encrypted key custody rather than environment variables for prod
 - Support explicit deletion by removing encrypted private-key material without deleting historical public trust records needed for verification.
 
 ## Schema and Compatibility Contract
-- Add an explicit `author_signature_alg` field for newly authored Ed25519 heads, with value `ed25519_sync_head_v1`.
+- Add an explicit `author_signature_alg` field for future newly authored Ed25519 heads, with value `ed25519_sync_head_v1`, after writer/key-custody approval.
 - Continue accepting schema-version-3 heads without `author_signature_alg` only through the documented legacy fallback window.
 - For heads with `author_signature_alg = "ed25519_sync_head_v1"`, require Ed25519 verification success and do not fall back to the legacy pseudo-signature.
 - Reject unknown non-empty `author_signature_alg` values with `KC_TRUST_SIGNATURE_INVALID` or a narrower sync-auth error code.
 - Decide separately whether the field ships as schema version 3 extension or as schema version 4. Do not implement either path without fixture and migration/compatibility coverage.
 
 ## Safest First Implementation Slice
-1. Add parser/validator support for optional `author_signature_alg` on `SyncHeadV1` without changing writer behavior.
-2. Add generated fixtures for legacy v3, v3 plus `ed25519_sync_head_v1`, and unknown-algorithm heads.
-3. Change acceptance semantics only for heads that explicitly declare `ed25519_sync_head_v1`: Ed25519 success required; legacy fallback forbidden.
-4. Keep writer behavior unchanged until key custody is implemented; env-key signing may continue to emit compatibility heads unless a separate approval updates emission.
-5. Add tests proving unknown algorithms fail, declared Ed25519 rejects tampering, and legacy undeclared v3 remains accepted during the compatibility window.
+1. Done: add parser/validator support for optional `author_signature_alg` on `SyncHeadV1` without changing writer behavior.
+2. Done: add generated fixtures for legacy v3, v3 plus `ed25519_sync_head_v1`, and unknown-algorithm heads.
+3. Done: change acceptance semantics only for heads that explicitly declare `ed25519_sync_head_v1`: Ed25519 success required; legacy fallback forbidden.
+4. Done: keep writer behavior unchanged until key custody is implemented; env-key signing continues to emit compatibility heads.
+5. Done: add tests proving unknown algorithms fail, declared Ed25519 rejects tampering, and legacy undeclared v3 remains accepted during the compatibility window.
+
+## Implementation Checkpoint
+- `SyncHeadV1` now accepts optional `author_signature_alg` as a v3 extension and omits it from newly written heads.
+- The sync head schema validator allows only `ed25519_sync_head_v1` or `null` for `author_signature_alg`.
+- Declared `ed25519_sync_head_v1` remote heads require Ed25519 verification success and cannot fall back to the legacy BLAKE3-derived pseudo-signature.
+- Unknown non-empty declared algorithms fail with `KC_TRUST_SIGNATURE_INVALID`.
+- Undeclared v3 heads still accept the legacy compatibility fallback.
 
 ## Non-Goals
 - No cloud sync expansion.
@@ -55,7 +62,7 @@ Use vault-local encrypted key custody rather than environment variables for prod
 - No removal of the legacy fallback until rollout timing is explicitly approved.
 
 ## Approval Gates
-- Implementing `author_signature_alg` in runtime code requires explicit approval of whether this is a v3 extension or schema v4.
+- Changing writer behavior to emit `author_signature_alg` requires explicit key-custody/writer approval.
 - Persisting private signing keys requires explicit key-custody implementation approval and tests for unlock, rotation, backup/recovery, and deletion behavior.
 - Removing the legacy fallback requires explicit rollout approval and compatibility evidence for existing heads.
 - Any vault metadata/schema change requires fixtures, downgrade/rollback expectations, and no private-document ingestion.
@@ -71,4 +78,4 @@ Use vault-local encrypted key custody rather than environment variables for prod
 - `node scripts/dependency-watch.mjs`
 
 ## Done Criteria
-This design lane is done when the decision record is merged and the next implementation lane is limited to optional algorithm parsing plus declared-Ed25519 enforcement tests, with key persistence and fallback removal still approval-gated.
+This design lane is done when the decision record and optional algorithm enforcement slice are merged, with key persistence and undeclared legacy fallback removal still approval-gated.

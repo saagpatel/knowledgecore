@@ -64,7 +64,8 @@ Capture the current security/readiness state after the June 2026 audit, first de
 - Local sync signing key custody is now implemented behind explicit trust-device enrollment: schema v12 adds `sync_signing_keys`, private Ed25519 seeds are encrypted with XChaCha20-Poly1305 using the vault unlock passphrase boundary, CLI/desktop surfaces expose enrollment/status/soft-delete/rotation controls, and S3 sync emits `author_signature_alg = "ed25519_sync_head_v1"` only when the custody key is unlocked and matches the verified local author device.
 - Read-only sync auth readiness reporting is now exposed through CLI/core-service/desktop RPC and classifies remote heads without writes, migrations, fallback removal, cloud expansion, or strict-mode enforcement.
 - Sync auth rollout evidence now includes generated readiness fixtures and a multi-target CLI summary that counts strict-ready, strict-blocked, legacy-fallback-dependent, invalid, and per-classification targets without creating missing targets.
-- Read-only `sync auth-strict-check` now provides an opt-in rollout gate that fails with `KC_SYNC_AUTH_STRICT_BLOCKED` unless every provided target is strict-ready; opt-in `sync pull --strict-auth` also blocks non-strict-ready remote heads before apply. Default pull/push behavior, fallback compatibility, target contents, and vault formats remain unchanged.
+- Read-only `sync auth-strict-check` now provides an opt-in rollout gate that fails with `KC_SYNC_AUTH_STRICT_BLOCKED` unless every provided target is strict-ready. Default strict pull also blocks non-strict-ready remote heads before apply, explicit compatibility pull remains available, and push behavior, target contents, and vault formats remain unchanged.
+- Default strict sync auth for pull entrypoints is now captured in `docs/26-sync-default-strict-auth-rollout-plan-2026-06-19.md`; explicit compatibility pull remains available, and legacy fallback removal remains unimplemented until separately approved.
 - Sync signing-key status/delete surfaces now return explicit re-enrollment guidance when local custody is missing, retired, or deleted; the guidance states private signing keys are not recoverable and does not add export, escrow, restore, cloud custody, or sync writer behavior.
 - Recovery verification now decrypts `key_blob.enc` with the recovery phrase-derived key, checks the deterministic recovery nonce, rejects empty restored passphrases, and includes regressions for matching-hash forged blobs that cannot decrypt.
 - DB encryption lifecycle tests now pin unsupported mode/KDF rejection, idempotent already-encrypted migration detection, wrong-key failure for encrypted DB migration, and absence of stale `.sqlcipher.tmp` / `.pre-sqlcipher.bak` artifacts after successful migration.
@@ -93,8 +94,7 @@ Capture the current security/readiness state after the June 2026 audit, first de
 - Do not promote S3 sync, managed identity, or recovery escrow to production-ready until their current risk items are resolved and verified.
 
 ## Next Recommended Lane
-1. Use generated rollout evidence from `sync auth-readiness-report`, `sync auth-strict-check`, and opt-in `sync pull --strict-auth` trials to decide the next approval gate before any private-key backup/recovery design, default runtime strict-mode enforcement, or undeclared legacy fallback removal.
-2. Decide whether to proceed with the v4 `db_encryption.state` schema implementation and compatibility fixtures.
-3. Decide whether non-OCR PDF page-count limits are needed beyond the current PDF byte and OCR page-count guardrails.
-4. Plan the next RustSec review before `2026-07-19`, especially the GTK3/Tauri Linux backend chain and the remaining macro/unicode transitives.
-5. Restore repo-local UI dependencies in a non-blocked environment if local `pnpm lint`, `pnpm test`, and `pnpm -C apps/desktop/ui build` must be run exactly in place rather than from a temp deploy.
+1. Decide whether to proceed with the v4 `db_encryption.state` schema implementation and compatibility fixtures.
+2. Decide whether non-OCR PDF page-count limits are needed beyond the current PDF byte and OCR page-count guardrails.
+3. Plan the next RustSec review before `2026-07-19`, especially the GTK3/Tauri Linux backend chain and the remaining macro/unicode transitives.
+4. Restore repo-local UI dependencies in a non-blocked environment if local `pnpm lint`, `pnpm test`, and `pnpm -C apps/desktop/ui build` must be run exactly in place rather than from a temp deploy.

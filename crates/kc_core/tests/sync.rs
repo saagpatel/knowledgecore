@@ -1,7 +1,7 @@
 use kc_core::db::open_db;
 use kc_core::object_store::ObjectStore;
 use kc_core::sync::{
-    sync_merge_preview_target, sync_pull, sync_pull_target, sync_pull_target_with_mode, sync_push,
+    sync_merge_preview_target, sync_pull_target, sync_pull_target_with_mode, sync_push,
     sync_push_target, sync_status, sync_status_target, SyncHeadV1,
 };
 use kc_core::trust::{trust_device_init, trust_device_verify};
@@ -86,7 +86,24 @@ fn sync_pull_applies_remote_snapshot() {
     sync_push(&conn_source, &source_vault, &sync_target, 100).expect("push");
 
     let conn_target = open_db(&target_vault.join("db/knowledge.sqlite")).expect("target db");
-    let pulled = sync_pull(&conn_target, &target_vault, &sync_target, 101).expect("pull");
+    let strict_err = sync_pull_target(
+        &conn_target,
+        &target_vault,
+        sync_target.to_string_lossy().as_ref(),
+        101,
+    )
+    .expect_err("default strict pull should block legacy unsigned head");
+    assert_eq!(strict_err.code, "KC_SYNC_AUTH_STRICT_BLOCKED");
+
+    let pulled = sync_pull_target_with_mode(
+        &conn_target,
+        &target_vault,
+        sync_target.to_string_lossy().as_ref(),
+        101,
+        None,
+        false,
+    )
+    .expect("pull");
     let object_files: usize = walkdir::WalkDir::new(target_vault.join("store/objects"))
         .into_iter()
         .filter_map(Result::ok)
@@ -161,7 +178,12 @@ fn sync_target_wrappers_support_file_uri() {
         Some(pushed.snapshot_id.clone())
     );
 
-    let pulled = sync_pull_target(&conn, &vault_root, &target_uri, 101).expect("sync pull target");
+    let strict_err = sync_pull_target(&conn, &vault_root, &target_uri, 101)
+        .expect_err("default strict pull should block legacy unsigned head");
+    assert_eq!(strict_err.code, "KC_SYNC_AUTH_STRICT_BLOCKED");
+
+    let pulled = sync_pull_target_with_mode(&conn, &vault_root, &target_uri, 101, None, false)
+        .expect("legacy-compatible sync pull target");
     assert_eq!(pulled.snapshot_id, pushed.snapshot_id);
 }
 
@@ -202,7 +224,13 @@ fn sync_target_wrappers_support_s3_uri_with_emulation() {
         Some(pushed.snapshot_id.clone())
     );
 
-    let pulled = sync_pull_target(&conn_pull, &pull_vault_root, target_uri, 101).expect("s3 pull");
+    let strict_err = sync_pull_target(&conn_pull, &pull_vault_root, target_uri, 101)
+        .expect_err("default strict s3 pull should block legacy unsigned head");
+    assert_eq!(strict_err.code, "KC_SYNC_AUTH_STRICT_BLOCKED");
+
+    let pulled =
+        sync_pull_target_with_mode(&conn_pull, &pull_vault_root, target_uri, 101, None, false)
+            .expect("legacy-compatible s3 pull");
     assert_eq!(pulled.snapshot_id, pushed.snapshot_id);
 
     std::env::remove_var("KC_VAULT_PASSPHRASE");
@@ -293,7 +321,15 @@ fn sync_merge_preview_reports_safe_for_disjoint_local_and_remote_changes() {
     insert_object(&conn_a, &vault_a, b"baseline", 1);
 
     sync_push(&conn_a, &vault_a, &sync_target, 100).expect("push baseline");
-    sync_pull(&conn_b, &vault_b, &sync_target, 101).expect("pull baseline into b");
+    sync_pull_target_with_mode(
+        &conn_b,
+        &vault_b,
+        sync_target.to_string_lossy().as_ref(),
+        101,
+        None,
+        false,
+    )
+    .expect("pull baseline into b");
     let conn_b = open_db(&vault_b.join("db/knowledge.sqlite")).expect("reopen db b");
 
     insert_object(&conn_a, &vault_a, b"local-only-change", 2);
@@ -330,18 +366,28 @@ fn sync_pull_with_conservative_auto_merge_applies_disjoint_changes() {
     insert_object(&conn_a, &vault_a, b"baseline", 1);
 
     sync_push(&conn_a, &vault_a, &sync_target, 100).expect("push baseline");
-    sync_pull(&conn_b, &vault_b, &sync_target, 101).expect("pull baseline into b");
+    sync_pull_target_with_mode(
+        &conn_b,
+        &vault_b,
+        sync_target.to_string_lossy().as_ref(),
+        101,
+        None,
+        false,
+    )
+    .expect("pull baseline into b");
     let conn_b = open_db(&vault_b.join("db/knowledge.sqlite")).expect("reopen db b");
 
     insert_object(&conn_a, &vault_a, b"local-only-change", 2);
     insert_object(&conn_b, &vault_b, b"remote-only-change", 2);
     sync_push(&conn_b, &vault_b, &sync_target, 200).expect("push remote-only delta");
 
-    let conflict_err = sync_pull_target(
+    let conflict_err = sync_pull_target_with_mode(
         &conn_a,
         &vault_a,
         sync_target.to_string_lossy().as_ref(),
         300,
+        None,
+        false,
     )
     .expect_err("expected conflict without auto-merge");
     assert_eq!(conflict_err.code, "KC_SYNC_CONFLICT");
@@ -373,7 +419,15 @@ fn sync_pull_with_conservative_plus_v2_auto_merge_applies_disjoint_changes() {
     insert_object(&conn_a, &vault_a, b"baseline", 1);
 
     sync_push(&conn_a, &vault_a, &sync_target, 100).expect("push baseline");
-    sync_pull(&conn_b, &vault_b, &sync_target, 101).expect("pull baseline into b");
+    sync_pull_target_with_mode(
+        &conn_b,
+        &vault_b,
+        sync_target.to_string_lossy().as_ref(),
+        101,
+        None,
+        false,
+    )
+    .expect("pull baseline into b");
     let conn_b = open_db(&vault_b.join("db/knowledge.sqlite")).expect("reopen db b");
 
     insert_object(&conn_a, &vault_a, b"local-only-change", 2);
@@ -407,7 +461,15 @@ fn sync_pull_with_conservative_plus_v3_auto_merge_applies_disjoint_changes() {
     insert_object(&conn_a, &vault_a, b"baseline", 1);
 
     sync_push(&conn_a, &vault_a, &sync_target, 100).expect("push baseline");
-    sync_pull(&conn_b, &vault_b, &sync_target, 101).expect("pull baseline into b");
+    sync_pull_target_with_mode(
+        &conn_b,
+        &vault_b,
+        sync_target.to_string_lossy().as_ref(),
+        101,
+        None,
+        false,
+    )
+    .expect("pull baseline into b");
     let conn_b = open_db(&vault_b.join("db/knowledge.sqlite")).expect("reopen db b");
 
     insert_object(&conn_a, &vault_a, b"local-only-change", 2);
@@ -441,7 +503,15 @@ fn sync_pull_with_conservative_plus_v4_auto_merge_applies_disjoint_changes() {
     insert_object(&conn_a, &vault_a, b"baseline", 1);
 
     sync_push(&conn_a, &vault_a, &sync_target, 100).expect("push baseline");
-    sync_pull(&conn_b, &vault_b, &sync_target, 101).expect("pull baseline into b");
+    sync_pull_target_with_mode(
+        &conn_b,
+        &vault_b,
+        sync_target.to_string_lossy().as_ref(),
+        101,
+        None,
+        false,
+    )
+    .expect("pull baseline into b");
     let conn_b = open_db(&vault_b.join("db/knowledge.sqlite")).expect("reopen db b");
 
     insert_object(&conn_a, &vault_a, b"local-only-change", 2);

@@ -445,6 +445,8 @@ pub enum SyncCmd {
         target_path: String,
         #[arg(long = "auto-merge")]
         auto_merge: Option<String>,
+        #[arg(long = "allow-legacy-auth", conflicts_with = "strict_auth")]
+        allow_legacy_auth: bool,
         #[arg(long = "strict-auth")]
         strict_auth: bool,
         #[arg(long = "now-ms")]

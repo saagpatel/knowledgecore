@@ -38,7 +38,8 @@ Define sync head schema v3 with managed-identity-backed device certificate autho
 - `sync auth-readiness` is a read-only inspection surface for one target.
 - `sync auth-readiness-report` aggregates multiple target inspections for rollout evidence.
 - `sync auth-strict-check` is a read-only rollout gate that exits successfully only when every provided target is strict-ready.
-- `sync pull --strict-auth` is an opt-in runtime gate for pull operations; default pull behavior preserves the legacy compatibility window.
+- Pull entrypoints are strict by default and reject non-strict-ready remote heads before snapshot apply.
+- CLI `sync pull --allow-legacy-auth` and RPC `strict_auth=false` preserve an explicit temporary compatibility path during the legacy fallback window.
 - Per-target classifications:
   - `no_remote_head`
   - `legacy_schema`
@@ -52,7 +53,7 @@ Define sync head schema v3 with managed-identity-backed device certificate autho
 - Aggregate fields are deterministic: `target_count`, `strict_ready_count`, `strict_blocked_count`, `depends_on_legacy_fallback_count`, `invalid_count`, lexical `classification_counts`, and `reports` in caller-provided target order.
 - Reports do not include generated timestamps, generated ids, migrations, writes, strict-mode enforcement, fallback removal, or cloud behavior changes.
 - The strict check gate does not mutate targets or remove fallback behavior; it returns `KC_SYNC_AUTH_STRICT_BLOCKED` when any target is not strict-ready.
-- Opt-in strict pull returns `KC_SYNC_AUTH_STRICT_BLOCKED` before applying a non-strict-ready remote head; default pull, push, readiness, and merge-preview behavior are unchanged.
+- Default strict pull returns `KC_SYNC_AUTH_STRICT_BLOCKED` before applying a non-strict-ready remote head. Push, readiness, and merge-preview behavior remain unchanged, and explicit compatibility pull remains available until fallback removal is separately approved.
 
 ## Determinism and version-boundary rules
 - v3 payload canonicalization order is fixed.

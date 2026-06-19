@@ -822,7 +822,7 @@ pub struct SyncPullReq {
     #[serde(default)]
     pub auto_merge: Option<String>,
     #[serde(default)]
-    pub strict_auth: bool,
+    pub strict_auth: Option<bool>,
     pub now_ms: i64,
 }
 
@@ -2002,7 +2002,7 @@ pub fn sync_pull_rpc(req: SyncPullReq) -> RpcResponse<SyncPullRes> {
         &req.target_path,
         req.now_ms,
         req.auto_merge.as_deref(),
-        req.strict_auth,
+        req.strict_auth.unwrap_or(true),
     ) {
         Ok(out) => RpcResponse::ok(SyncPullRes {
             snapshot_id: out.snapshot_id,

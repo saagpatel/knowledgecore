@@ -90,7 +90,7 @@ Versioned RPC surface v1, envelope schema, and determinism notes.
          - events_list, jobs_list
          - sync_status, sync_push, sync_pull
            - `sync_pull` accepts optional `auto_merge` with supported values `conservative`, `conservative_plus_v2`, `conservative_plus_v3`, and `conservative_plus_v4`
-           - `sync_pull` accepts optional `strict_auth`; when true, non-strict-ready remote heads fail before snapshot apply with `KC_SYNC_AUTH_STRICT_BLOCKED`
+           - `sync_pull` accepts optional `strict_auth`; omitted/null defaults to strict auth, `false` enables explicit legacy compatibility, and strict pulls fail non-strict-ready remote heads before snapshot apply with `KC_SYNC_AUTH_STRICT_BLOCKED`
          - sync_merge_preview
            - accepts optional `policy` with supported values `conservative`, `conservative_plus_v2`, `conservative_plus_v3`, and `conservative_plus_v4`
            - `conservative_plus_v2` emits `schema_version=2`; `conservative_plus_v3` emits `schema_version=3`; `conservative_plus_v4` emits `schema_version=4`, each with deterministic `decision_trace`

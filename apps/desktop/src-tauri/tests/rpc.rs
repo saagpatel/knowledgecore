@@ -843,7 +843,7 @@ fn rpc_sync_supports_s3_uri_targets_via_emulation() {
         vault_path: pull_root.to_string_lossy().to_string(),
         target_path: target_uri.to_string(),
         auto_merge: Some("conservative".to_string()),
-        strict_auth: false,
+        strict_auth: Some(false),
         now_ms: 4,
     });
     match pulled {

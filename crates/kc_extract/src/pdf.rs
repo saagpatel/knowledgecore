@@ -6,10 +6,49 @@ pub struct PdfiumConfig {
     pub library_path: Option<String>,
 }
 
+#[derive(Debug, Clone)]
 pub struct PdfExtractOutput {
     pub text_with_page_markers: String,
     pub extracted_len: usize,
     pub extracted_alnum_ratio: f64,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PdfResourceLimits {
+    pub max_input_bytes: usize,
+    pub max_extracted_bytes: usize,
+}
+
+fn enforce_pdf_input_limit(pdf_bytes: &[u8], limits: PdfResourceLimits) -> AppResult<()> {
+    if pdf_bytes.len() > limits.max_input_bytes {
+        return Err(AppError::new(
+            "KC_RESOURCE_LIMIT_EXCEEDED",
+            "extract",
+            "pdf input exceeds configured byte limit",
+            false,
+            serde_json::json!({
+                "bytes": pdf_bytes.len(),
+                "max_input_bytes": limits.max_input_bytes,
+            }),
+        ));
+    }
+    Ok(())
+}
+
+fn enforce_pdf_output_limit(text_len: usize, limits: PdfResourceLimits) -> AppResult<()> {
+    if text_len > limits.max_extracted_bytes {
+        return Err(AppError::new(
+            "KC_RESOURCE_LIMIT_EXCEEDED",
+            "extract",
+            "pdf extracted text exceeds configured byte limit",
+            false,
+            serde_json::json!({
+                "bytes": text_len,
+                "max_extracted_bytes": limits.max_extracted_bytes,
+            }),
+        ));
+    }
+    Ok(())
 }
 
 fn alnum_ratio(content: &str) -> f64 {
@@ -100,6 +139,18 @@ fn extract_pdf_via_pdfium(pdf_bytes: &[u8], cfg: &PdfiumConfig) -> AppResult<Str
 }
 
 pub fn extract_pdf_text(pdf_bytes: &[u8], cfg: &PdfiumConfig) -> AppResult<PdfExtractOutput> {
+    extract_pdf_text_with_limits(pdf_bytes, cfg, None)
+}
+
+pub fn extract_pdf_text_with_limits(
+    pdf_bytes: &[u8],
+    cfg: &PdfiumConfig,
+    limits: Option<PdfResourceLimits>,
+) -> AppResult<PdfExtractOutput> {
+    if let Some(limits) = limits {
+        enforce_pdf_input_limit(pdf_bytes, limits)?;
+    }
+
     let text = if pdf_bytes.starts_with(b"%PDF") {
         extract_pdf_via_pdfium(pdf_bytes, cfg)?
     } else {
@@ -116,6 +167,9 @@ pub fn extract_pdf_text(pdf_bytes: &[u8], cfg: &PdfiumConfig) -> AppResult<PdfEx
     };
 
     let ratio = alnum_ratio(&text);
+    if let Some(limits) = limits {
+        enforce_pdf_output_limit(text.len(), limits)?;
+    }
 
     Ok(PdfExtractOutput {
         extracted_len: text.len(),

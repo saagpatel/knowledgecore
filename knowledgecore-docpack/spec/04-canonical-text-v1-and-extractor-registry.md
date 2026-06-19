@@ -7,10 +7,12 @@ Defines canonical text normalization v1, marker formats, extraction provenance, 
 - Canonical text is UTF-8 and stored as an object; ground truth for all downstream operations.
 - Tier 1: marker lines included in canonical bytes/hashes.
 - Tier 2: PDF/OCR deterministic within pinned toolchain; tool changes define boundary.
+- PDF/OCR page, byte, and time/resource limits are policy boundaries; production default changes require explicit approval.
 
 ## Acceptance Tests
 - Golden tests validate marker insertion and normalization.
 - OCR triggers deterministically for scanned/no-text fixture; provenance recorded.
+- Resource-limit tests must use generated PDFs/images and must not ingest private documents.
 
 ## Normalization v1 (assumption)
 - Normalize line endings to `\n`.

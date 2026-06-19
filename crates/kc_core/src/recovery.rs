@@ -417,6 +417,8 @@ pub fn verify_recovery_bundle(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::open_db;
+    use crate::object_store::{ObjectStore, ObjectStoreEncryptionContext};
 
     #[test]
     fn recovery_blob_decrypts_to_original_passphrase() {
@@ -438,5 +440,84 @@ mod tests {
         .expect("decrypt blob");
 
         assert_eq!(restored, b"vault-passphrase");
+    }
+
+    #[test]
+    fn recovery_restore_drill_unlocks_generated_encrypted_fixture() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let db_path = root.path().join("db/knowledge.sqlite");
+        let conn = open_db(&db_path).expect("open db");
+        let objects_dir = root.path().join("store/objects");
+        let vault_id = "vault-drill";
+        let vault_passphrase = "vault-passphrase-for-generated-drill";
+        let key_reference = format!("vault:{vault_id}");
+
+        let key = crate::object_store::derive_object_store_key(
+            vault_passphrase,
+            "vault-kdf-salt-v1",
+            4096,
+            2,
+            1,
+        )
+        .expect("derive fixture key");
+        let encrypted_store = ObjectStore::with_encryption(
+            objects_dir.clone(),
+            ObjectStoreEncryptionContext {
+                key,
+                key_reference: key_reference.clone(),
+            },
+        );
+        let payload = b"generated recovery drill payload";
+        let hash = encrypted_store
+            .put_bytes(&conn, payload, 1)
+            .expect("write encrypted fixture object");
+
+        let generated = generate_recovery_bundle(
+            vault_id,
+            &root.path().join("recovery-out"),
+            vault_passphrase,
+            100,
+        )
+        .expect("generate recovery bundle");
+        let verified =
+            verify_recovery_bundle(vault_id, &generated.bundle_path, &generated.recovery_phrase)
+                .expect("verify recovery bundle");
+        assert_eq!(verified, generated.manifest);
+
+        let blob = fs::read(generated.bundle_path.join("key_blob.enc")).expect("read key blob");
+        let restored = decrypt_recovery_blob(
+            vault_id,
+            generated.manifest.created_at_ms,
+            &generated.recovery_phrase,
+            &blob,
+            &generated.bundle_path.join("key_blob.enc"),
+        )
+        .expect("restore passphrase from recovery bundle");
+        assert_eq!(restored, vault_passphrase.as_bytes());
+
+        let restored_passphrase =
+            String::from_utf8(restored).expect("restored passphrase is utf8 fixture");
+        let restored_key = crate::object_store::derive_object_store_key(
+            &restored_passphrase,
+            "vault-kdf-salt-v1",
+            4096,
+            2,
+            1,
+        )
+        .expect("derive restored fixture key");
+        let restored_store = ObjectStore::with_encryption(
+            objects_dir,
+            ObjectStoreEncryptionContext {
+                key: restored_key,
+                key_reference,
+            },
+        );
+
+        assert_eq!(
+            restored_store
+                .get_bytes(&hash)
+                .expect("restored passphrase decrypts object"),
+            payload
+        );
     }
 }

@@ -8,6 +8,7 @@ Define deterministic push/pull synchronization against a filesystem target using
 - Snapshot ids are deterministic hashes derived from manifest hash + `now_ms`.
 - Conflict handling never auto-merges; it emits a deterministic conflict artifact and fails.
 - Pull applies only top-level snapshot data trees (`db`, `store`, `index`) and never mutates `vault.json`.
+- Snapshot archive size, extracted entry count, and extraction path validation are resource and safety boundaries; production default changes require explicit approval.
 
 ## Non-goals
 - Bidirectional merge strategies.
@@ -38,6 +39,7 @@ Define deterministic push/pull synchronization against a filesystem target using
 - Clean push writes head + snapshot and updates local sync state.
 - Clean pull applies remote snapshot content to local vault.
 - Divergence emits deterministic conflict artifact and hard-fails.
+- Oversized or path-unsafe snapshot fixtures fail deterministically without writing outside the temp vault.
 - RPC and CLI contract tests pass.
 
 ## Rollout gate

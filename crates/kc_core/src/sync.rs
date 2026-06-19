@@ -3,6 +3,7 @@ use crate::canon_json::to_canonical_bytes;
 use crate::db::open_db;
 use crate::export::{export_bundle, ExportOptions};
 use crate::hashing::blake3_hex_prefixed;
+use crate::resource_limits::sync_snapshot_limits;
 use crate::sync_merge::{
     ensure_conservative_merge_safe, ensure_conservative_plus_v2_merge_safe,
     ensure_conservative_plus_v3_merge_safe, ensure_conservative_plus_v4_merge_safe,
@@ -25,6 +26,13 @@ const TRUST_MODEL_PASSPHRASE_V1: &str = "passphrase_v1";
 const S3_LOCK_KEY: &str = "locks/write.lock";
 const S3_LOCK_TTL_MS: i64 = 60_000;
 static SYNC_TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+#[derive(Debug, Clone, Copy)]
+pub struct SyncSnapshotResourceLimits {
+    pub max_archive_bytes: usize,
+    pub max_entries: usize,
+    pub max_entry_bytes: u64,
+}
 
 fn next_sync_temp_suffix() -> u64 {
     SYNC_TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)
@@ -362,6 +370,27 @@ fn safe_zip_relative_path(name: &str) -> AppResult<PathBuf> {
 }
 
 fn unpack_zip_snapshot(zip_bytes: &[u8], output_dir: &Path) -> AppResult<()> {
+    unpack_zip_snapshot_with_limits(zip_bytes, output_dir, None)
+}
+
+fn unpack_zip_snapshot_with_limits(
+    zip_bytes: &[u8],
+    output_dir: &Path,
+    limits: Option<SyncSnapshotResourceLimits>,
+) -> AppResult<()> {
+    if let Some(limits) = limits {
+        if zip_bytes.len() > limits.max_archive_bytes {
+            return Err(sync_error(
+                "KC_RESOURCE_LIMIT_EXCEEDED",
+                "sync snapshot archive exceeds configured byte limit",
+                serde_json::json!({
+                    "bytes": zip_bytes.len(),
+                    "max_archive_bytes": limits.max_archive_bytes,
+                }),
+            ));
+        }
+    }
+
     fs::create_dir_all(output_dir).map_err(|e| {
         sync_error(
             "KC_SYNC_TARGET_INVALID",
@@ -389,6 +418,29 @@ fn unpack_zip_snapshot(zip_bytes: &[u8], output_dir: &Path) -> AppResult<()> {
         })?;
         if file.name().ends_with('/') {
             continue;
+        }
+        if let Some(limits) = limits {
+            if names.len() + 1 > limits.max_entries {
+                return Err(sync_error(
+                    "KC_RESOURCE_LIMIT_EXCEEDED",
+                    "sync snapshot zip exceeds configured entry limit",
+                    serde_json::json!({
+                        "entries": names.len() + 1,
+                        "max_entries": limits.max_entries,
+                    }),
+                ));
+            }
+            if file.size() > limits.max_entry_bytes {
+                return Err(sync_error(
+                    "KC_RESOURCE_LIMIT_EXCEEDED",
+                    "sync snapshot zip entry exceeds configured byte limit",
+                    serde_json::json!({
+                        "entry": file.name(),
+                        "bytes": file.size(),
+                        "max_entry_bytes": limits.max_entry_bytes,
+                    }),
+                ));
+            }
         }
         names.push(file.name().to_string());
     }
@@ -2021,7 +2073,7 @@ fn sync_pull_s3_target(
                 )
             })?;
         }
-        unpack_zip_snapshot(&zip_bytes, &unpack_dir)?;
+        unpack_zip_snapshot_with_limits(&zip_bytes, &unpack_dir, Some(sync_snapshot_limits()))?;
         apply_snapshot_to_vault(&unpack_dir, vault_path)?;
 
         let post_conn = open_db(&db_path)?;
@@ -2093,7 +2145,7 @@ pub fn sync_pull_target_with_mode(
 
 #[cfg(test)]
 mod tests {
-    use super::unpack_zip_snapshot;
+    use super::{unpack_zip_snapshot, unpack_zip_snapshot_with_limits, SyncSnapshotResourceLimits};
     use std::io::Write;
     use zip::write::SimpleFileOptions;
 
@@ -2139,5 +2191,48 @@ mod tests {
         unpack_zip_snapshot(&bytes, &out).expect("safe zip should unpack");
         assert!(out.join("manifest.json").exists());
         assert!(out.join("db/knowledge.sqlite").exists());
+    }
+
+    #[test]
+    fn unpack_zip_snapshot_limits_reject_generated_oversized_archive_without_writes() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let out = root.path().join("out");
+        let bytes = zip_bytes(&[("manifest.json", b"{\"schema\":1}")]);
+
+        let err = unpack_zip_snapshot_with_limits(
+            &bytes,
+            &out,
+            Some(SyncSnapshotResourceLimits {
+                max_archive_bytes: 8,
+                max_entries: 8,
+                max_entry_bytes: 1024,
+            }),
+        )
+        .expect_err("oversized archive should fail");
+
+        assert_eq!(err.code, "KC_RESOURCE_LIMIT_EXCEEDED");
+        assert!(!out.exists());
+    }
+
+    #[test]
+    fn unpack_zip_snapshot_limits_reject_generated_entry_count_without_writes() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let out = root.path().join("out");
+        let bytes = zip_bytes(&[("manifest.json", b"{}"), ("db/knowledge.sqlite", b"db")]);
+
+        let err = unpack_zip_snapshot_with_limits(
+            &bytes,
+            &out,
+            Some(SyncSnapshotResourceLimits {
+                max_archive_bytes: bytes.len() + 1,
+                max_entries: 1,
+                max_entry_bytes: 1024,
+            }),
+        )
+        .expect_err("too many entries should fail");
+
+        assert_eq!(err.code, "KC_RESOURCE_LIMIT_EXCEEDED");
+        assert!(!out.join("manifest.json").exists());
+        assert!(!out.join("db/knowledge.sqlite").exists());
     }
 }

@@ -846,6 +846,7 @@ fn should_conflict(
 }
 
 fn apply_snapshot_to_vault(snapshot_dir: &Path, vault_path: &Path) -> AppResult<()> {
+    validate_snapshot_dir_limits(snapshot_dir, sync_snapshot_limits())?;
     for top in ["db", "store", "index"] {
         let src = snapshot_dir.join(top);
         if !src.exists() {
@@ -880,6 +881,69 @@ fn apply_snapshot_to_vault(snapshot_dir: &Path, vault_path: &Path) -> AppResult<
         })?;
         copy_tree_sorted(&src, &dst)?;
     }
+    Ok(())
+}
+
+fn validate_snapshot_dir_limits(
+    snapshot_dir: &Path,
+    limits: SyncSnapshotResourceLimits,
+) -> AppResult<()> {
+    let mut files = Vec::new();
+    for top in ["db", "store", "index"] {
+        let src = snapshot_dir.join(top);
+        if !src.exists() {
+            continue;
+        }
+        if src.is_file() {
+            files.push(src);
+            continue;
+        }
+        for entry in walkdir::WalkDir::new(&src)
+            .follow_links(false)
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_type().is_file())
+        {
+            files.push(entry.path().to_path_buf());
+        }
+    }
+    files.sort();
+
+    if files.len() > limits.max_entries {
+        return Err(sync_error(
+            "KC_RESOURCE_LIMIT_EXCEEDED",
+            "sync snapshot directory exceeds configured entry limit",
+            serde_json::json!({
+                "entries": files.len(),
+                "max_entries": limits.max_entries,
+                "path": snapshot_dir,
+            }),
+        ));
+    }
+
+    for file in files {
+        let len = fs::metadata(&file)
+            .map_err(|e| {
+                sync_error(
+                    "KC_SYNC_TARGET_INVALID",
+                    "failed reading sync snapshot file metadata",
+                    serde_json::json!({ "error": e.to_string(), "path": file }),
+                )
+            })?
+            .len();
+        if len > limits.max_entry_bytes {
+            return Err(sync_error(
+                "KC_RESOURCE_LIMIT_EXCEEDED",
+                "sync snapshot directory entry exceeds configured byte limit",
+                serde_json::json!({
+                    "path": file,
+                    "bytes": len,
+                    "max_entry_bytes": limits.max_entry_bytes,
+                }),
+            ));
+        }
+    }
+
     Ok(())
 }
 
@@ -2145,7 +2209,10 @@ pub fn sync_pull_target_with_mode(
 
 #[cfg(test)]
 mod tests {
-    use super::{unpack_zip_snapshot, unpack_zip_snapshot_with_limits, SyncSnapshotResourceLimits};
+    use super::{
+        unpack_zip_snapshot, unpack_zip_snapshot_with_limits, validate_snapshot_dir_limits,
+        SyncSnapshotResourceLimits,
+    };
     use std::io::Write;
     use zip::write::SimpleFileOptions;
 
@@ -2234,5 +2301,30 @@ mod tests {
         assert_eq!(err.code, "KC_RESOURCE_LIMIT_EXCEEDED");
         assert!(!out.join("manifest.json").exists());
         assert!(!out.join("db/knowledge.sqlite").exists());
+    }
+
+    #[test]
+    fn snapshot_dir_limits_reject_generated_oversized_entry_before_apply() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let snapshot = root.path().join("snapshot");
+        let db_dir = snapshot.join("db");
+        std::fs::create_dir_all(&db_dir).expect("create snapshot db dir");
+        std::fs::write(
+            db_dir.join("knowledge.sqlite"),
+            b"generated oversized db fixture",
+        )
+        .expect("write generated fixture");
+
+        let err = validate_snapshot_dir_limits(
+            &snapshot,
+            SyncSnapshotResourceLimits {
+                max_archive_bytes: 1024,
+                max_entries: 8,
+                max_entry_bytes: 8,
+            },
+        )
+        .expect_err("oversized snapshot dir entry should fail");
+
+        assert_eq!(err.code, "KC_RESOURCE_LIMIT_EXCEEDED");
     }
 }

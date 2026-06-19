@@ -2,12 +2,14 @@ use crate::html::canonicalize_html;
 use crate::md::canonicalize_markdown;
 use crate::normalize::normalize_text_v1;
 use crate::ocr::{
-    ocr_pdf_via_images, should_run_ocr, tesseract_version, traineddata_hashes, OcrConfig,
+    ocr_pdf_via_images_with_limits, should_run_ocr, tesseract_version, traineddata_hashes,
+    OcrConfig, OcrResourceLimits,
 };
-use crate::pdf::{extract_pdf_text, PdfiumConfig};
+use crate::pdf::{extract_pdf_text_with_limits, PdfResourceLimits, PdfiumConfig};
 use kc_core::app_error::{AppError, AppResult};
 use kc_core::canon_json::to_canonical_bytes;
 use kc_core::hashing::blake3_hex_prefixed;
+use kc_core::resource_limits::{OCR_MAX_PAGES, PDF_EXTRACTED_TEXT_MAX_BYTES, PDF_INPUT_MAX_BYTES};
 use kc_core::services::{CanonicalTextArtifact, ExtractInput, ExtractService, ToolchainIdentity};
 use kc_core::types::{CanonicalHash, ObjectHash};
 
@@ -52,14 +54,24 @@ impl ExtractService for DefaultExtractor {
                 canonicalize_html(&text)
             }
             "application/pdf" => {
-                let pdf = extract_pdf_text(input.bytes, &PdfiumConfig { library_path: None })?;
+                let pdf = extract_pdf_text_with_limits(
+                    input.bytes,
+                    &PdfiumConfig { library_path: None },
+                    Some(PdfResourceLimits {
+                        max_input_bytes: PDF_INPUT_MAX_BYTES,
+                        max_extracted_bytes: PDF_EXTRACTED_TEXT_MAX_BYTES,
+                    }),
+                )?;
                 if should_run_ocr(pdf.extracted_len, pdf.extracted_alnum_ratio) {
-                    match ocr_pdf_via_images(
+                    match ocr_pdf_via_images_with_limits(
                         input.bytes,
                         &OcrConfig {
                             tesseract_cmd: None,
                             language: ocr_language.clone(),
                         },
+                        Some(OcrResourceLimits {
+                            max_pages: OCR_MAX_PAGES,
+                        }),
                     ) {
                         Ok(ocr_text) => {
                             ocr_used = true;

@@ -17,13 +17,13 @@ This slice is implementation-ready after normal code-change approval because it 
 1. Done in this checkpoint: add deterministic recovery restore drill tests that generate temp fixture state, generate a local recovery bundle, verify it, restore the passphrase inside recovery module test scope, and prove the restored passphrase decrypts only the generated fixture object.
 2. Done in this checkpoint: add negative drill coverage for wrong phrase, tampered bundle, missing bundle files, and empty restored passphrase handling.
 3. Done in this checkpoint: add explicit opt-in resource-limit APIs and generated-fixture tests for ingest bytes, sync snapshot zip archive/entry limits, PDF input/extracted-text byte limits, and vector batch/text limits.
-4. Partially done in this checkpoint: approved defaults are wired into CLI/RPC ingest, S3 sync pull zip extraction, and CLI index rebuild. Remaining production wiring covers PDF/OCR extraction and filesystem snapshot directory size/count enforcement.
+4. Done in this checkpoint: approved defaults are wired into CLI/RPC ingest, default PDF byte extraction, OCR page-count validation before Tesseract OCR, S3 sync pull zip extraction, filesystem snapshot directory apply preflight, and CLI index rebuild.
 
 ## Guardrail Decisions Needed
 - Maximum single file size for ingest.
 - Maximum files per scan-folder request.
 - Maximum directory traversal depth and whether symlink following is disabled by default.
-- Maximum PDF pages and maximum OCR pages per document.
+- Maximum OCR pages per document is approved and wired; maximum PDF pages for non-OCR extraction remains a future decision if needed.
 - Maximum extracted canonical text bytes per document.
 - Maximum sync snapshot archive size and maximum extracted entries.
 - Maximum vector rows or batches accepted per rebuild/import operation.
@@ -42,7 +42,7 @@ This slice is implementation-ready after normal code-change approval because it 
 - Recovery drill tests prove common failure cases return existing recovery `AppError` codes.
 - Resource-limit tests use generated fixture data and do not depend on private local documents.
 - Resource-limit behavior is deterministic for opt-in ingest, sync snapshot, PDF extraction, and vector persistence helpers.
-- Approved production defaults and first CLI/RPC wiring points are captured and partially enforced.
+- Approved production defaults and current CLI/RPC/extract/sync/index wiring points are captured and partially enforced.
 - Documentation is updated with any approved defaults and stop conditions before production enforcement lands.
 
 ## Approval Gates

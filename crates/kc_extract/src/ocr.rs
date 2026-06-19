@@ -10,8 +10,29 @@ pub struct OcrConfig {
     pub language: String,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct OcrResourceLimits {
+    pub max_pages: usize,
+}
+
 pub fn should_run_ocr(extracted_len: usize, alnum_ratio: f64) -> bool {
     extracted_len < 800 || alnum_ratio < 0.10
+}
+
+pub fn validate_ocr_page_count(page_count: usize, limits: OcrResourceLimits) -> AppResult<()> {
+    if page_count > limits.max_pages {
+        return Err(AppError::new(
+            "KC_RESOURCE_LIMIT_EXCEEDED",
+            "extract",
+            "ocr page count exceeds configured limit",
+            false,
+            serde_json::json!({
+                "pages": page_count,
+                "max_pages": limits.max_pages,
+            }),
+        ));
+    }
+    Ok(())
 }
 
 pub fn tesseract_version(tesseract_cmd: &str) -> AppResult<String> {
@@ -72,8 +93,23 @@ pub fn traineddata_hashes(language: &str) -> Vec<String> {
 }
 
 pub fn ocr_pdf_via_images(pdf_bytes: &[u8], ocr_cfg: &OcrConfig) -> AppResult<String> {
+    ocr_pdf_via_images_with_limits(pdf_bytes, ocr_cfg, None)
+}
+
+pub fn ocr_pdf_via_images_with_limits(
+    pdf_bytes: &[u8],
+    ocr_cfg: &OcrConfig,
+    limits: Option<OcrResourceLimits>,
+) -> AppResult<String> {
     if let Ok(fake) = std::env::var("KC_OCR_FAKE_TEXT") {
         if !fake.is_empty() {
+            if let (Some(limits), Ok(fake_pages)) =
+                (limits, std::env::var("KC_OCR_FAKE_PAGE_COUNT"))
+            {
+                if let Ok(fake_pages) = fake_pages.parse::<usize>() {
+                    validate_ocr_page_count(fake_pages, limits)?;
+                }
+            }
             return Ok(fake);
         }
     }
@@ -149,6 +185,9 @@ pub fn ocr_pdf_via_images(pdf_bytes: &[u8], ocr_cfg: &OcrConfig) -> AppResult<St
         .filter(|p| p.extension().and_then(|x| x.to_str()) == Some("png"))
         .collect();
     pages.sort();
+    if let Some(limits) = limits {
+        validate_ocr_page_count(pages.len(), limits)?;
+    }
 
     let mut text = String::new();
     for (idx, page) in pages.into_iter().enumerate() {

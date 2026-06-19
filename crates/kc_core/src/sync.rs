@@ -2374,7 +2374,7 @@ pub fn sync_pull(
     target_path: &Path,
     now_ms: i64,
 ) -> AppResult<SyncPullResultV1> {
-    sync_pull_with_mode(conn, vault_path, target_path, now_ms, None, false)
+    sync_pull_with_mode(conn, vault_path, target_path, now_ms, None, true)
 }
 
 fn sync_pull_s3_target(
@@ -2667,7 +2667,7 @@ pub fn sync_pull_target(
     target_uri: &str,
     now_ms: i64,
 ) -> AppResult<SyncPullResultV1> {
-    sync_pull_target_with_mode(conn, vault_path, target_uri, now_ms, None, false)
+    sync_pull_target_with_mode(conn, vault_path, target_uri, now_ms, None, true)
 }
 
 pub fn sync_pull_target_with_mode(

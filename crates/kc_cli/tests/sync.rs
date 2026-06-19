@@ -1,6 +1,6 @@
 use kc_core::db::open_db;
 use kc_core::object_store::ObjectStore;
-use kc_core::sync::{sync_pull, sync_push};
+use kc_core::sync::{sync_pull_target_with_mode, sync_push};
 use kc_core::trust::{trust_device_init, trust_device_verify};
 use kc_core::trust_identity::{
     trust_device_enroll, trust_device_verify_chain, trust_identity_complete, trust_identity_start,
@@ -118,12 +118,11 @@ fn cli_sync_push_and_status_work() {
             "pull",
             vault_root.to_string_lossy().as_ref(),
             sync_target.to_string_lossy().as_ref(),
-            "--strict-auth",
             "--now-ms",
             "101",
         ])
         .output()
-        .expect("run strict sync pull");
+        .expect("run default strict sync pull");
     assert!(
         !strict_pull.status.success(),
         "strict pull unexpectedly succeeded: {}",
@@ -133,6 +132,24 @@ fn cli_sync_push_and_status_work() {
         String::from_utf8_lossy(&strict_pull.stderr).contains("KC_SYNC_AUTH_STRICT_BLOCKED"),
         "strict pull stderr: {}",
         String::from_utf8_lossy(&strict_pull.stderr)
+    );
+
+    let legacy_pull = Command::new(bin)
+        .args([
+            "sync",
+            "pull",
+            vault_root.to_string_lossy().as_ref(),
+            sync_target.to_string_lossy().as_ref(),
+            "--allow-legacy-auth",
+            "--now-ms",
+            "101",
+        ])
+        .output()
+        .expect("run legacy-compatible sync pull");
+    assert!(
+        legacy_pull.status.success(),
+        "legacy-compatible pull stderr: {}",
+        String::from_utf8_lossy(&legacy_pull.stderr)
     );
 
     let empty_target = root.join("empty-sync-target");
@@ -280,6 +297,7 @@ fn cli_sync_supports_s3_uri_with_emulation() {
             "pull",
             pull_vault_root.to_string_lossy().as_ref(),
             target_uri,
+            "--allow-legacy-auth",
             "--now-ms",
             "101",
         ])
@@ -332,7 +350,15 @@ fn cli_sync_merge_preview_and_conservative_pull_work() {
         .put_bytes(&conn_a, b"baseline", 1)
         .expect("put baseline");
     sync_push(&conn_a, &vault_a, &sync_target, 100).expect("push baseline");
-    sync_pull(&conn_b, &vault_b, &sync_target, 101).expect("pull baseline");
+    sync_pull_target_with_mode(
+        &conn_b,
+        &vault_b,
+        sync_target.to_string_lossy().as_ref(),
+        101,
+        None,
+        false,
+    )
+    .expect("pull baseline");
     let conn_b = open_db(&vault_b.join("db/knowledge.sqlite")).expect("reopen db b");
 
     store_a
@@ -416,6 +442,7 @@ fn cli_sync_merge_preview_and_conservative_pull_work() {
             "pull",
             vault_a.to_string_lossy().as_ref(),
             sync_target.to_string_lossy().as_ref(),
+            "--allow-legacy-auth",
             "--now-ms",
             "301",
         ])
@@ -434,6 +461,7 @@ fn cli_sync_merge_preview_and_conservative_pull_work() {
             sync_target.to_string_lossy().as_ref(),
             "--auto-merge",
             "conservative_plus_v2",
+            "--allow-legacy-auth",
             "--now-ms",
             "302",
         ])
@@ -453,6 +481,7 @@ fn cli_sync_merge_preview_and_conservative_pull_work() {
             sync_target.to_string_lossy().as_ref(),
             "--auto-merge",
             "conservative_plus_v3",
+            "--allow-legacy-auth",
             "--now-ms",
             "303",
         ])
@@ -472,6 +501,7 @@ fn cli_sync_merge_preview_and_conservative_pull_work() {
             sync_target.to_string_lossy().as_ref(),
             "--auto-merge",
             "conservative_plus_v4",
+            "--allow-legacy-auth",
             "--now-ms",
             "304",
         ])
@@ -503,7 +533,15 @@ fn cli_sync_merge_preview_v3_is_replay_stable_and_blocks_overlap_pull() {
         .put_bytes(&conn_a, b"baseline", 1)
         .expect("put baseline");
     sync_push(&conn_a, &vault_a, &sync_target, 100).expect("push baseline");
-    sync_pull(&conn_b, &vault_b, &sync_target, 101).expect("pull baseline");
+    sync_pull_target_with_mode(
+        &conn_b,
+        &vault_b,
+        sync_target.to_string_lossy().as_ref(),
+        101,
+        None,
+        false,
+    )
+    .expect("pull baseline");
     let conn_b = open_db(&vault_b.join("db/knowledge.sqlite")).expect("reopen db b");
 
     // Write identical post-baseline bytes on both sides so v3 detects object overlap.
@@ -571,6 +609,7 @@ fn cli_sync_merge_preview_v3_is_replay_stable_and_blocks_overlap_pull() {
             sync_target.to_string_lossy().as_ref(),
             "--auto-merge",
             "conservative_plus_v3",
+            "--allow-legacy-auth",
             "--now-ms",
             "301",
         ])

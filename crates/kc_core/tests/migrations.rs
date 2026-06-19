@@ -1,13 +1,13 @@
 use kc_core::db::{open_db, schema_version};
 
 #[test]
-fn migrations_apply_schema_v11() {
+fn migrations_apply_schema_v12() {
     let temp = tempfile::tempdir().expect("tempdir");
     let db_path = temp.path().join("db/knowledge.sqlite");
 
     let conn = open_db(&db_path).expect("open db");
     let version = schema_version(&conn).expect("schema version");
-    assert_eq!(version, 11);
+    assert_eq!(version, 12);
 
     let names: Vec<String> = [
         "objects",
@@ -38,6 +38,7 @@ fn migrations_apply_schema_v11() {
         "lineage_policies",
         "lineage_policy_bindings",
         "lineage_policy_audit",
+        "sync_signing_keys",
     ]
     .iter()
     .map(|table| {
@@ -50,5 +51,5 @@ fn migrations_apply_schema_v11() {
     })
     .collect();
 
-    assert_eq!(names.len(), 28);
+    assert_eq!(names.len(), 29);
 }

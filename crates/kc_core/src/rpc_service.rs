@@ -34,8 +34,10 @@ use crate::recovery_escrow_private_kms::{
     PrivateKmsRecoveryEscrowConfig, PrivateKmsRecoveryEscrowProvider,
 };
 use crate::resource_limits::{ingest_single_file_limits, scan_folder_limits};
+use crate::sync_key_custody::{store_sync_signing_seed, SyncSigningKeyStatus};
 use crate::trust::{
-    trust_device_init, trust_device_list, trust_device_verify, TrustedDeviceRecord,
+    trust_device_init, trust_device_init_with_seed, trust_device_list, trust_device_verify,
+    TrustedDeviceRecord,
 };
 use crate::trust_identity::{
     discover_identity_provider, trust_device_enroll, trust_device_verify_chain,
@@ -196,6 +198,21 @@ pub struct VaultDbEncryptMigrateResult {
 pub struct TrustDeviceEnrollResult {
     pub device: TrustedDeviceRecord,
     pub certificate: DeviceCertificateRecord,
+}
+
+#[derive(Debug, Clone)]
+pub struct TrustDeviceEnrollSigningKeyResult {
+    pub device: TrustedDeviceRecord,
+    pub certificate: DeviceCertificateRecord,
+    pub signing_key: SyncSigningKeyStatus,
+}
+
+struct SyncSigningSeed([u8; 32]);
+
+impl Drop for SyncSigningSeed {
+    fn drop(&mut self) {
+        self.0.fill(0);
+    }
 }
 
 fn jobs_set() -> &'static Mutex<BTreeSet<String>> {
@@ -1079,6 +1096,51 @@ pub fn trust_device_enroll_service(
     Ok(TrustDeviceEnrollResult {
         device: verified,
         certificate,
+    })
+}
+
+pub fn trust_device_enroll_signing_key_service(
+    vault_path: &Path,
+    device_label: &str,
+    passphrase: &str,
+    now_ms: i64,
+) -> AppResult<TrustDeviceEnrollSigningKeyResult> {
+    ensure_passphrase_not_empty(passphrase)?;
+    let vault = vault_open(vault_path)?;
+    let conn = open_db(&vault_path.join(vault.db.relative_path))?;
+
+    let mut seed = SyncSigningSeed([0u8; 32]);
+    getrandom::fill(&mut seed.0).map_err(|e| {
+        AppError::new(
+            "KC_SYNC_SIGNING_KEY_WRITE_FAILED",
+            "sync_key_custody",
+            "failed generating sync signing key seed",
+            false,
+            serde_json::json!({ "error": e.to_string() }),
+        )
+    })?;
+    let created = trust_device_init_with_seed(
+        &conn,
+        device_label,
+        "trust_device_enroll_signing_key",
+        now_ms,
+        &seed.0,
+    )?;
+    let verified = trust_device_verify(
+        &conn,
+        &created.device_id,
+        &created.fingerprint,
+        "trust_device_enroll_signing_key",
+        now_ms + 1,
+    )?;
+    let certificate = trust_device_enroll(&conn, "default", &verified.device_id, now_ms + 2)?;
+    let signing_key =
+        store_sync_signing_seed(&conn, &verified.device_id, &seed.0, passphrase, now_ms + 3)?;
+
+    Ok(TrustDeviceEnrollSigningKeyResult {
+        device: verified,
+        certificate,
+        signing_key,
     })
 }
 

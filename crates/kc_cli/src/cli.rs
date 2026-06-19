@@ -267,6 +267,15 @@ pub enum TrustDeviceCmd {
         #[arg(long = "now-ms")]
         now_ms: Option<i64>,
     },
+    EnrollSigningKey {
+        vault_path: String,
+        #[arg(long = "device-label")]
+        device_label: String,
+        #[arg(long = "passphrase-env")]
+        passphrase_env: String,
+        #[arg(long = "now-ms")]
+        now_ms: Option<i64>,
+    },
     VerifyChain {
         vault_path: String,
         #[arg(long = "device-id")]

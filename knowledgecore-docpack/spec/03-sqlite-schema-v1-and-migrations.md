@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS events (
 ## FTS5 contract
 - `chunks_fts` virtual table defined in spec/07.
 
-## Migration additions (current user_version=8)
+## Migration additions (current user_version=12)
 - `0002_sync.sql` adds:
   - `sync_state`
   - `sync_snapshots`
@@ -97,6 +97,19 @@ CREATE TABLE IF NOT EXISTS events (
   - `lineage_permissions`
   - `lineage_role_bindings`
   - `lineage_lock_scopes`
+- `0009_trust_provider_governance.sql` adds:
+  - `trust_providers`
+  - `trust_provider_policies`
+  - `trust_session_revocations`
+- `0010_recovery_escrow_providers_v3.sql` adds:
+  - `recovery_escrow_provider_configs`
+- `0011_lineage_policy_conditions_v3.sql` adds:
+  - `lineage_policies`
+  - `lineage_policy_bindings`
+  - `lineage_policy_audit`
+- `0012_sync_signing_keys.sql` adds:
+  - `sync_signing_keys`
+  - encrypted Ed25519 signing seed custody metadata keyed by trusted device id
 
 ## Error codes
 - `KC_DB_OPEN_FAILED`

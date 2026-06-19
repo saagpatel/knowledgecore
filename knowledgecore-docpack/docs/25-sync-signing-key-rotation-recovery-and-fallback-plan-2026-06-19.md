@@ -35,14 +35,14 @@ Recovery should be local re-enrollment, not private signing-key backup.
 ## Fallback Removal Decision
 Legacy undeclared v3 signatures can be removed only after compatibility evidence proves existing heads are not stranded.
 
-- First add read-only telemetry/reporting that classifies sync heads as declared Ed25519, undeclared Ed25519-compatible, or undeclared legacy fallback.
-- Then add a user-visible readiness command/report that lists targets still depending on undeclared legacy fallback.
+- Done: add read-only `sync auth-readiness` telemetry/reporting that classifies sync heads as declared Ed25519, undeclared Ed25519-compatible, undeclared legacy fallback, legacy schema, missing, unsupported, or invalid.
+- Done: expose a user-visible CLI/core-service/desktop RPC readiness report that lists whether a target still depends on undeclared legacy fallback.
 - Only after that evidence exists, add a separate opt-in enforcement flag or schema-version transition plan.
 - Final removal must fail undeclared legacy fallback heads with a deterministic sync-auth error and clear remediation guidance.
 
 ## Safest Implementation Sequence
 1. Done: add explicit rotation command/RPC that enrolls a new signing device and soft-deletes the old custody row only after the new key verifies.
-2. Add a read-only sync auth readiness report for local sync targets; no writes, no migrations, no cloud behavior changes.
+2. Done: add a read-only sync auth readiness report for local sync targets; no writes, no migrations, no cloud behavior changes.
 3. Add UI/CLI copy for local re-enrollment recovery when custody is missing or deleted.
 4. Add compatibility fixtures for existing undeclared v3 heads, declared Ed25519 heads, and fallback-removal failure cases.
 5. Add opt-in strict mode for rejecting undeclared legacy fallback before making it default.

@@ -771,6 +771,26 @@ pub struct SyncStatusRes {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct SyncAuthReadinessReq {
+    pub vault_path: String,
+    pub target_path: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SyncAuthReadinessRes {
+    pub report_version: i64,
+    pub target_path: String,
+    pub classification: String,
+    pub strict_ready: bool,
+    pub depends_on_legacy_fallback: bool,
+    pub remediation: Option<String>,
+    pub remote_head: Option<SyncHeadRes>,
+    pub error_code: Option<String>,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SyncPushReq {
     pub vault_path: String,
     pub target_path: String,
@@ -1905,6 +1925,47 @@ pub fn sync_status_rpc(req: SyncStatusReq) -> RpcResponse<SyncStatusRes> {
             remote_head: status.remote_head.map(map_sync_head),
             seen_remote_snapshot_id: status.seen_remote_snapshot_id,
             last_applied_manifest_hash: status.last_applied_manifest_hash,
+        }),
+        Err(error) => RpcResponse::err(error),
+    }
+}
+
+fn sync_auth_readiness_classification_name(
+    classification: kc_core::sync::SyncAuthReadinessClassification,
+) -> String {
+    match classification {
+        kc_core::sync::SyncAuthReadinessClassification::NoRemoteHead => "no_remote_head",
+        kc_core::sync::SyncAuthReadinessClassification::LegacySchema => "legacy_schema",
+        kc_core::sync::SyncAuthReadinessClassification::DeclaredEd25519 => "declared_ed25519",
+        kc_core::sync::SyncAuthReadinessClassification::UndeclaredEd25519Compatible => {
+            "undeclared_ed25519_compatible"
+        }
+        kc_core::sync::SyncAuthReadinessClassification::UndeclaredLegacyFallback => {
+            "undeclared_legacy_fallback"
+        }
+        kc_core::sync::SyncAuthReadinessClassification::UnsupportedDeclaredAlgorithm => {
+            "unsupported_declared_algorithm"
+        }
+        kc_core::sync::SyncAuthReadinessClassification::Invalid => "invalid",
+    }
+    .to_string()
+}
+
+pub fn sync_auth_readiness_rpc(req: SyncAuthReadinessReq) -> RpcResponse<SyncAuthReadinessRes> {
+    match rpc_service::sync_auth_readiness_service(
+        std::path::Path::new(&req.vault_path),
+        &req.target_path,
+    ) {
+        Ok(report) => RpcResponse::ok(SyncAuthReadinessRes {
+            report_version: report.report_version,
+            target_path: report.target_path,
+            classification: sync_auth_readiness_classification_name(report.classification),
+            strict_ready: report.strict_ready,
+            depends_on_legacy_fallback: report.depends_on_legacy_fallback,
+            remediation: report.remediation,
+            remote_head: report.remote_head.map(map_sync_head),
+            error_code: report.error_code,
+            error_message: report.error_message,
         }),
         Err(error) => RpcResponse::err(error),
     }

@@ -78,6 +78,39 @@ fn cli_sync_push_and_status_work() {
     );
     let stdout = String::from_utf8(status.stdout).expect("utf8 status");
     assert!(stdout.contains("\"remote_head\""));
+
+    let readiness = Command::new(bin)
+        .args([
+            "sync",
+            "auth-readiness",
+            vault_root.to_string_lossy().as_ref(),
+            sync_target.to_string_lossy().as_ref(),
+        ])
+        .output()
+        .expect("run sync auth-readiness");
+    assert!(
+        readiness.status.success(),
+        "auth readiness stderr: {}",
+        String::from_utf8_lossy(&readiness.stderr)
+    );
+    let readiness_json: serde_json::Value =
+        serde_json::from_slice(&readiness.stdout).expect("auth readiness json");
+    assert_eq!(
+        readiness_json
+            .get("classification")
+            .and_then(|v| v.as_str()),
+        Some("legacy_schema")
+    );
+    assert_eq!(
+        readiness_json
+            .get("depends_on_legacy_fallback")
+            .and_then(|v| v.as_bool()),
+        Some(true)
+    );
+    assert_eq!(
+        readiness_json.get("strict_ready").and_then(|v| v.as_bool()),
+        Some(false)
+    );
 }
 
 #[test]

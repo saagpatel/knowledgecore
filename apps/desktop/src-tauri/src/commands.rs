@@ -283,6 +283,13 @@ pub fn sync_status(req: rpc::SyncStatusReq) -> rpc::RpcResponse<rpc::SyncStatusR
 }
 
 #[tauri::command]
+pub fn sync_auth_readiness(
+    req: rpc::SyncAuthReadinessReq,
+) -> rpc::RpcResponse<rpc::SyncAuthReadinessRes> {
+    rpc::sync_auth_readiness_rpc(req)
+}
+
+#[tauri::command]
 pub fn sync_push(req: rpc::SyncPushReq) -> rpc::RpcResponse<rpc::SyncPushRes> {
     rpc::sync_push_rpc(req)
 }

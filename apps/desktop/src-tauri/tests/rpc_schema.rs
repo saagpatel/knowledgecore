@@ -3,8 +3,8 @@ use apps_desktop_tauri::rpc::{
     LineageLockStatusReq, LineageOverlayAddReq, LineageOverlayListReq, LineageOverlayRemoveReq,
     LineagePolicyAddReq, LineagePolicyBindReq, LineagePolicyListReq, LineageQueryReq,
     LineageQueryV2Req, LineageRoleGrantReq, LineageRoleListReq, LineageRoleRevokeReq,
-    SearchQueryReq, SyncMergePreviewReq, SyncPullReq, SyncPushReq, SyncStatusReq,
-    TrustDeviceEnrollReq, TrustDeviceEnrollSigningKeyReq, TrustDeviceListReq,
+    SearchQueryReq, SyncAuthReadinessReq, SyncMergePreviewReq, SyncPullReq, SyncPushReq,
+    SyncStatusReq, TrustDeviceEnrollReq, TrustDeviceEnrollSigningKeyReq, TrustDeviceListReq,
     TrustDeviceSigningKeyDeleteReq, TrustDeviceSigningKeyRotateReq, TrustDeviceSigningKeyStatusReq,
     TrustDeviceVerifyChainReq, TrustIdentityCompleteReq, TrustIdentityStartReq, TrustPolicySetReq,
     TrustPolicySetTenantTemplateReq, TrustProviderAddReq, TrustProviderDisableReq,
@@ -225,6 +225,13 @@ fn rpc_schema_sync_rejects_unknown_fields() {
         "extra": "nope"
     });
     assert!(serde_json::from_value::<SyncStatusReq>(invalid_status).is_err());
+
+    let invalid_readiness = serde_json::json!({
+        "vault_path": "/tmp/vault",
+        "target_path": "/tmp/target",
+        "extra": "nope"
+    });
+    assert!(serde_json::from_value::<SyncAuthReadinessReq>(invalid_readiness).is_err());
 }
 
 #[test]
@@ -234,6 +241,12 @@ fn rpc_schema_sync_accepts_uri_targets() {
         "target_path": "s3://demo-bucket/kc"
     });
     assert!(serde_json::from_value::<SyncStatusReq>(status).is_ok());
+
+    let readiness = serde_json::json!({
+        "vault_path": "/tmp/vault",
+        "target_path": "s3://demo-bucket/kc"
+    });
+    assert!(serde_json::from_value::<SyncAuthReadinessReq>(readiness).is_ok());
 
     let push = serde_json::json!({
         "vault_path": "/tmp/vault",

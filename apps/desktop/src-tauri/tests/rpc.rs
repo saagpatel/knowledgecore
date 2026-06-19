@@ -5,8 +5,8 @@ use apps_desktop_tauri::rpc::{
     lineage_overlay_add_rpc, lineage_overlay_list_rpc, lineage_overlay_remove_rpc,
     lineage_policy_add_rpc, lineage_policy_bind_rpc, lineage_policy_list_rpc, lineage_query_rpc,
     lineage_query_v2_rpc, lineage_role_grant_rpc, lineage_role_list_rpc, lineage_role_revoke_rpc,
-    sync_merge_preview_rpc, sync_pull_rpc, sync_push_rpc, sync_status_rpc, trust_device_enroll_rpc,
-    trust_device_enroll_signing_key_rpc, trust_device_list_rpc,
+    sync_auth_readiness_rpc, sync_merge_preview_rpc, sync_pull_rpc, sync_push_rpc, sync_status_rpc,
+    trust_device_enroll_rpc, trust_device_enroll_signing_key_rpc, trust_device_list_rpc,
     trust_device_signing_key_delete_rpc, trust_device_signing_key_rotate_rpc,
     trust_device_signing_key_status_rpc, trust_device_verify_chain_rpc,
     trust_identity_complete_rpc, trust_identity_start_rpc, trust_policy_set_tenant_template_rpc,
@@ -21,16 +21,17 @@ use apps_desktop_tauri::rpc::{
     LineageLockStatusReq, LineageOverlayAddReq, LineageOverlayListReq, LineageOverlayRemoveReq,
     LineagePolicyAddReq, LineagePolicyBindReq, LineagePolicyListReq, LineageQueryReq,
     LineageQueryV2Req, LineageRoleGrantReq, LineageRoleListReq, LineageRoleRevokeReq, RpcResponse,
-    SyncMergePreviewReq, SyncPullReq, SyncPushReq, SyncStatusReq, TrustDeviceEnrollReq,
-    TrustDeviceEnrollSigningKeyReq, TrustDeviceListReq, TrustDeviceSigningKeyDeleteReq,
-    TrustDeviceSigningKeyRotateReq, TrustDeviceSigningKeyStatusReq, TrustDeviceVerifyChainReq,
-    TrustIdentityCompleteReq, TrustIdentityStartReq, TrustPolicySetTenantTemplateReq,
-    TrustProviderDiscoverReq, VaultEncryptionEnableReq, VaultEncryptionMigrateReq,
-    VaultEncryptionStatusReq, VaultInitReq, VaultLockReq, VaultLockStatusReq, VaultOpenReq,
-    VaultRecoveryEscrowEnableReq, VaultRecoveryEscrowProviderAddReq,
-    VaultRecoveryEscrowProviderListReq, VaultRecoveryEscrowRestoreReq,
-    VaultRecoveryEscrowRotateAllReq, VaultRecoveryEscrowRotateReq, VaultRecoveryEscrowStatusReq,
-    VaultRecoveryGenerateReq, VaultRecoveryStatusReq, VaultRecoveryVerifyReq, VaultUnlockReq,
+    SyncAuthReadinessReq, SyncMergePreviewReq, SyncPullReq, SyncPushReq, SyncStatusReq,
+    TrustDeviceEnrollReq, TrustDeviceEnrollSigningKeyReq, TrustDeviceListReq,
+    TrustDeviceSigningKeyDeleteReq, TrustDeviceSigningKeyRotateReq, TrustDeviceSigningKeyStatusReq,
+    TrustDeviceVerifyChainReq, TrustIdentityCompleteReq, TrustIdentityStartReq,
+    TrustPolicySetTenantTemplateReq, TrustProviderDiscoverReq, VaultEncryptionEnableReq,
+    VaultEncryptionMigrateReq, VaultEncryptionStatusReq, VaultInitReq, VaultLockReq,
+    VaultLockStatusReq, VaultOpenReq, VaultRecoveryEscrowEnableReq,
+    VaultRecoveryEscrowProviderAddReq, VaultRecoveryEscrowProviderListReq,
+    VaultRecoveryEscrowRestoreReq, VaultRecoveryEscrowRotateAllReq, VaultRecoveryEscrowRotateReq,
+    VaultRecoveryEscrowStatusReq, VaultRecoveryGenerateReq, VaultRecoveryStatusReq,
+    VaultRecoveryVerifyReq, VaultUnlockReq,
 };
 use kc_core::app_error::AppError;
 use std::sync::{Mutex, OnceLock};
@@ -670,6 +671,20 @@ fn rpc_sync_status_and_push() {
         RpcResponse::Err { error } => panic!("sync status failed: {}", error.code),
     }
 
+    let readiness_before = sync_auth_readiness_rpc(SyncAuthReadinessReq {
+        vault_path: root.to_string_lossy().to_string(),
+        target_path: sync_target.to_string_lossy().to_string(),
+    });
+    match readiness_before {
+        RpcResponse::Ok { data } => {
+            assert_eq!(data.classification, "no_remote_head");
+            assert!(data.strict_ready);
+            assert!(!data.depends_on_legacy_fallback);
+            assert!(data.remote_head.is_none());
+        }
+        RpcResponse::Err { error } => panic!("sync auth readiness failed: {}", error.code),
+    }
+
     let pushed = sync_push_rpc(SyncPushReq {
         vault_path: root.to_string_lossy().to_string(),
         target_path: sync_target.to_string_lossy().to_string(),
@@ -678,6 +693,20 @@ fn rpc_sync_status_and_push() {
     match pushed {
         RpcResponse::Ok { data } => assert!(!data.snapshot_id.is_empty()),
         RpcResponse::Err { error } => panic!("sync push failed: {}", error.code),
+    }
+
+    let readiness_after = sync_auth_readiness_rpc(SyncAuthReadinessReq {
+        vault_path: root.to_string_lossy().to_string(),
+        target_path: sync_target.to_string_lossy().to_string(),
+    });
+    match readiness_after {
+        RpcResponse::Ok { data } => {
+            assert_eq!(data.classification, "legacy_schema");
+            assert!(!data.strict_ready);
+            assert!(data.depends_on_legacy_fallback);
+            assert!(data.remote_head.is_some());
+        }
+        RpcResponse::Err { error } => panic!("sync auth readiness failed: {}", error.code),
     }
 }
 

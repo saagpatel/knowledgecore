@@ -67,6 +67,13 @@ pub fn trust_device_signing_key_delete(
 }
 
 #[tauri::command]
+pub fn trust_device_signing_key_rotate(
+    req: rpc::TrustDeviceSigningKeyRotateReq,
+) -> rpc::RpcResponse<rpc::TrustDeviceSigningKeyRotateRes> {
+    rpc::trust_device_signing_key_rotate_rpc(req)
+}
+
+#[tauri::command]
 pub fn trust_provider_add(
     req: rpc::TrustProviderAddReq,
 ) -> rpc::RpcResponse<rpc::TrustProviderRes> {

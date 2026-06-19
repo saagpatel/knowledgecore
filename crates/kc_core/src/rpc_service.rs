@@ -35,7 +35,8 @@ use crate::recovery_escrow_private_kms::{
 };
 use crate::resource_limits::{ingest_single_file_limits, scan_folder_limits};
 use crate::sync_key_custody::{
-    delete_sync_signing_key, store_sync_signing_seed, sync_signing_key_status, SyncSigningKeyStatus,
+    delete_sync_signing_key, rotate_sync_signing_key, store_sync_signing_seed,
+    sync_signing_key_status, SyncSigningKeyStatus,
 };
 use crate::trust::{
     trust_device_init, trust_device_init_with_seed, trust_device_list, trust_device_verify,
@@ -213,6 +214,14 @@ pub struct TrustDeviceEnrollSigningKeyResult {
 pub struct TrustDeviceSigningKeyDeleteResult {
     pub deleted: bool,
     pub signing_key: Option<SyncSigningKeyStatus>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TrustDeviceSigningKeyRotateResult {
+    pub old_signing_key: SyncSigningKeyStatus,
+    pub device: TrustedDeviceRecord,
+    pub certificate: DeviceCertificateRecord,
+    pub signing_key: SyncSigningKeyStatus,
 }
 
 struct SyncSigningSeed([u8; 32]);
@@ -1181,6 +1190,91 @@ pub fn trust_device_signing_key_delete_service(
     let signing_key = delete_sync_signing_key(&conn, device_id, now_ms)?;
     Ok(TrustDeviceSigningKeyDeleteResult {
         deleted: signing_key.is_some(),
+        signing_key,
+    })
+}
+
+pub fn trust_device_signing_key_rotate_service(
+    vault_path: &Path,
+    old_device_id: &str,
+    new_device_label: &str,
+    passphrase: &str,
+    now_ms: i64,
+) -> AppResult<TrustDeviceSigningKeyRotateResult> {
+    ensure_passphrase_not_empty(passphrase)?;
+    let vault = vault_open(vault_path)?;
+    let conn = open_db(&vault_path.join(vault.db.relative_path))?;
+
+    if sync_signing_key_status(&conn, old_device_id)?.is_none() {
+        return Err(AppError::new(
+            "KC_SYNC_SIGNING_KEY_NOT_FOUND",
+            "sync_key_custody",
+            "active sync signing key custody row is required for rotation",
+            false,
+            serde_json::json!({ "device_id": old_device_id }),
+        ));
+    }
+
+    let mut seed = SyncSigningSeed([0u8; 32]);
+    getrandom::fill(&mut seed.0).map_err(|e| {
+        AppError::new(
+            "KC_SYNC_SIGNING_KEY_WRITE_FAILED",
+            "sync_key_custody",
+            "failed generating replacement sync signing key seed",
+            false,
+            serde_json::json!({ "error": e.to_string() }),
+        )
+    })?;
+    let tx = conn.unchecked_transaction().map_err(|e| {
+        AppError::new(
+            "KC_SYNC_SIGNING_KEY_WRITE_FAILED",
+            "sync_key_custody",
+            "failed beginning sync signing key rotation transaction",
+            false,
+            serde_json::json!({ "error": e.to_string(), "device_id": old_device_id }),
+        )
+    })?;
+    let created = trust_device_init_with_seed(
+        &tx,
+        new_device_label,
+        "trust_device_signing_key_rotate",
+        now_ms,
+        &seed.0,
+    )?;
+    let verified = trust_device_verify(
+        &tx,
+        &created.device_id,
+        &created.fingerprint,
+        "trust_device_signing_key_rotate",
+        now_ms + 1,
+    )?;
+    let certificate = trust_device_enroll(&tx, "default", &verified.device_id, now_ms + 2)?;
+    let signing_key =
+        store_sync_signing_seed(&tx, &verified.device_id, &seed.0, passphrase, now_ms + 3)?;
+    let old_signing_key =
+        rotate_sync_signing_key(&tx, old_device_id, now_ms + 4)?.ok_or_else(|| {
+            AppError::new(
+                "KC_SYNC_SIGNING_KEY_NOT_FOUND",
+                "sync_key_custody",
+                "sync signing key custody row disappeared during rotation",
+                false,
+                serde_json::json!({ "device_id": old_device_id }),
+            )
+        })?;
+    tx.commit().map_err(|e| {
+        AppError::new(
+            "KC_SYNC_SIGNING_KEY_WRITE_FAILED",
+            "sync_key_custody",
+            "failed committing sync signing key rotation transaction",
+            false,
+            serde_json::json!({ "error": e.to_string(), "device_id": old_device_id }),
+        )
+    })?;
+
+    Ok(TrustDeviceSigningKeyRotateResult {
+        old_signing_key,
+        device: verified,
+        certificate,
         signing_key,
     })
 }

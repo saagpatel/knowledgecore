@@ -7,30 +7,30 @@ use apps_desktop_tauri::rpc::{
     lineage_query_v2_rpc, lineage_role_grant_rpc, lineage_role_list_rpc, lineage_role_revoke_rpc,
     sync_merge_preview_rpc, sync_pull_rpc, sync_push_rpc, sync_status_rpc, trust_device_enroll_rpc,
     trust_device_enroll_signing_key_rpc, trust_device_list_rpc,
-    trust_device_signing_key_delete_rpc, trust_device_signing_key_status_rpc,
-    trust_device_verify_chain_rpc, trust_identity_complete_rpc, trust_identity_start_rpc,
-    trust_policy_set_tenant_template_rpc, trust_provider_discover_rpc, vault_encryption_enable_rpc,
-    vault_encryption_migrate_rpc, vault_encryption_status_rpc, vault_init_rpc, vault_lock_rpc,
-    vault_lock_status_rpc, vault_open_rpc, vault_recovery_escrow_enable_rpc,
-    vault_recovery_escrow_provider_add_rpc, vault_recovery_escrow_provider_list_rpc,
-    vault_recovery_escrow_restore_rpc, vault_recovery_escrow_rotate_all_rpc,
-    vault_recovery_escrow_rotate_rpc, vault_recovery_escrow_status_rpc,
-    vault_recovery_generate_rpc, vault_recovery_status_rpc, vault_recovery_verify_rpc,
-    vault_unlock_rpc, IngestInboxStartReq, IngestInboxStopReq, JobsListReq, LineageLockAcquireReq,
-    LineageLockAcquireScopeReq, LineageLockReleaseReq, LineageLockStatusReq, LineageOverlayAddReq,
-    LineageOverlayListReq, LineageOverlayRemoveReq, LineagePolicyAddReq, LineagePolicyBindReq,
-    LineagePolicyListReq, LineageQueryReq, LineageQueryV2Req, LineageRoleGrantReq,
-    LineageRoleListReq, LineageRoleRevokeReq, RpcResponse, SyncMergePreviewReq, SyncPullReq,
-    SyncPushReq, SyncStatusReq, TrustDeviceEnrollReq, TrustDeviceEnrollSigningKeyReq,
-    TrustDeviceListReq, TrustDeviceSigningKeyDeleteReq, TrustDeviceSigningKeyStatusReq,
-    TrustDeviceVerifyChainReq, TrustIdentityCompleteReq, TrustIdentityStartReq,
-    TrustPolicySetTenantTemplateReq, TrustProviderDiscoverReq, VaultEncryptionEnableReq,
-    VaultEncryptionMigrateReq, VaultEncryptionStatusReq, VaultInitReq, VaultLockReq,
-    VaultLockStatusReq, VaultOpenReq, VaultRecoveryEscrowEnableReq,
-    VaultRecoveryEscrowProviderAddReq, VaultRecoveryEscrowProviderListReq,
-    VaultRecoveryEscrowRestoreReq, VaultRecoveryEscrowRotateAllReq, VaultRecoveryEscrowRotateReq,
-    VaultRecoveryEscrowStatusReq, VaultRecoveryGenerateReq, VaultRecoveryStatusReq,
-    VaultRecoveryVerifyReq, VaultUnlockReq,
+    trust_device_signing_key_delete_rpc, trust_device_signing_key_rotate_rpc,
+    trust_device_signing_key_status_rpc, trust_device_verify_chain_rpc,
+    trust_identity_complete_rpc, trust_identity_start_rpc, trust_policy_set_tenant_template_rpc,
+    trust_provider_discover_rpc, vault_encryption_enable_rpc, vault_encryption_migrate_rpc,
+    vault_encryption_status_rpc, vault_init_rpc, vault_lock_rpc, vault_lock_status_rpc,
+    vault_open_rpc, vault_recovery_escrow_enable_rpc, vault_recovery_escrow_provider_add_rpc,
+    vault_recovery_escrow_provider_list_rpc, vault_recovery_escrow_restore_rpc,
+    vault_recovery_escrow_rotate_all_rpc, vault_recovery_escrow_rotate_rpc,
+    vault_recovery_escrow_status_rpc, vault_recovery_generate_rpc, vault_recovery_status_rpc,
+    vault_recovery_verify_rpc, vault_unlock_rpc, IngestInboxStartReq, IngestInboxStopReq,
+    JobsListReq, LineageLockAcquireReq, LineageLockAcquireScopeReq, LineageLockReleaseReq,
+    LineageLockStatusReq, LineageOverlayAddReq, LineageOverlayListReq, LineageOverlayRemoveReq,
+    LineagePolicyAddReq, LineagePolicyBindReq, LineagePolicyListReq, LineageQueryReq,
+    LineageQueryV2Req, LineageRoleGrantReq, LineageRoleListReq, LineageRoleRevokeReq, RpcResponse,
+    SyncMergePreviewReq, SyncPullReq, SyncPushReq, SyncStatusReq, TrustDeviceEnrollReq,
+    TrustDeviceEnrollSigningKeyReq, TrustDeviceListReq, TrustDeviceSigningKeyDeleteReq,
+    TrustDeviceSigningKeyRotateReq, TrustDeviceSigningKeyStatusReq, TrustDeviceVerifyChainReq,
+    TrustIdentityCompleteReq, TrustIdentityStartReq, TrustPolicySetTenantTemplateReq,
+    TrustProviderDiscoverReq, VaultEncryptionEnableReq, VaultEncryptionMigrateReq,
+    VaultEncryptionStatusReq, VaultInitReq, VaultLockReq, VaultLockStatusReq, VaultOpenReq,
+    VaultRecoveryEscrowEnableReq, VaultRecoveryEscrowProviderAddReq,
+    VaultRecoveryEscrowProviderListReq, VaultRecoveryEscrowRestoreReq,
+    VaultRecoveryEscrowRotateAllReq, VaultRecoveryEscrowRotateReq, VaultRecoveryEscrowStatusReq,
+    VaultRecoveryGenerateReq, VaultRecoveryStatusReq, VaultRecoveryVerifyReq, VaultUnlockReq,
 };
 use kc_core::app_error::AppError;
 use std::sync::{Mutex, OnceLock};
@@ -250,16 +250,58 @@ fn rpc_trust_device_signing_key_custody_round_trip() {
         RpcResponse::Err { error } => panic!("signing key status failed: {}", error.code),
     }
 
-    match trust_device_signing_key_delete_rpc(TrustDeviceSigningKeyDeleteReq {
+    let rotated = trust_device_signing_key_rotate_rpc(TrustDeviceSigningKeyRotateReq {
+        vault_path: vault_path.clone(),
+        old_device_id: device_id.clone(),
+        new_device_label: "desktop-rotated".to_string(),
+        passphrase: "custody-passphrase".to_string(),
+        now_ms: 5,
+    });
+    let new_device_id = match rotated {
+        RpcResponse::Ok { data } => {
+            assert_eq!(data.label, "desktop-rotated");
+            assert_ne!(data.device_id, device_id);
+            assert_eq!(data.old_signing_key.device_id, device_id);
+            assert_eq!(data.old_signing_key.rotated_at_ms, Some(9));
+            assert_eq!(data.old_signing_key.deleted_at_ms, Some(9));
+            assert_eq!(data.signing_key.device_id, data.device_id);
+            data.device_id
+        }
+        RpcResponse::Err { error } => panic!("signing key rotate failed: {}", error.code),
+    };
+
+    match trust_device_signing_key_status_rpc(TrustDeviceSigningKeyStatusReq {
         vault_path: vault_path.clone(),
         device_id: device_id.clone(),
-        now_ms: 5,
+    }) {
+        RpcResponse::Ok { data } => assert!(data.signing_key.is_none()),
+        RpcResponse::Err { error } => {
+            panic!("old signing key status after rotate failed: {}", error.code)
+        }
+    }
+
+    match trust_device_list_rpc(TrustDeviceListReq {
+        vault_path: vault_path.clone(),
+    }) {
+        RpcResponse::Ok { data } => {
+            assert!(data.devices.iter().any(|d| d.device_id == device_id));
+            assert!(data.devices.iter().any(|d| d.device_id == new_device_id));
+        }
+        RpcResponse::Err { error } => {
+            panic!("trust device list after rotate failed: {}", error.code)
+        }
+    }
+
+    match trust_device_signing_key_delete_rpc(TrustDeviceSigningKeyDeleteReq {
+        vault_path: vault_path.clone(),
+        device_id: new_device_id.clone(),
+        now_ms: 10,
     }) {
         RpcResponse::Ok { data } => {
             assert!(data.deleted);
             assert_eq!(
                 data.signing_key.expect("deleted signing key").device_id,
-                device_id
+                new_device_id
             );
         }
         RpcResponse::Err { error } => panic!("signing key delete failed: {}", error.code),
@@ -267,7 +309,7 @@ fn rpc_trust_device_signing_key_custody_round_trip() {
 
     match trust_device_signing_key_status_rpc(TrustDeviceSigningKeyStatusReq {
         vault_path,
-        device_id,
+        device_id: new_device_id,
     }) {
         RpcResponse::Ok { data } => assert!(data.signing_key.is_none()),
         RpcResponse::Err { error } => {

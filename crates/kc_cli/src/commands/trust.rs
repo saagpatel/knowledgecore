@@ -2,9 +2,10 @@ use kc_core::app_error::{AppError, AppResult};
 use kc_core::rpc_service::{
     trust_device_enroll_service, trust_device_enroll_signing_key_service,
     trust_device_list_service, trust_device_signing_key_delete_service,
-    trust_device_signing_key_status_service, trust_device_verify_chain_service,
-    trust_identity_complete_service, trust_identity_start_service, trust_provider_add_service,
-    trust_provider_disable_service, trust_provider_discover_service, trust_provider_list_service,
+    trust_device_signing_key_rotate_service, trust_device_signing_key_status_service,
+    trust_device_verify_chain_service, trust_identity_complete_service,
+    trust_identity_start_service, trust_provider_add_service, trust_provider_disable_service,
+    trust_provider_discover_service, trust_provider_list_service,
     trust_provider_policy_set_service, trust_provider_policy_set_tenant_template_service,
 };
 use std::path::Path;
@@ -172,6 +173,35 @@ pub fn run_device_signing_key_delete(
         serde_json::to_string_pretty(&serde_json::json!({
             "status": "ok",
             "deleted": out.deleted,
+            "signing_key": out.signing_key
+        }))
+        .unwrap_or_else(|_| "{}".to_string())
+    );
+    Ok(())
+}
+
+pub fn run_device_signing_key_rotate(
+    vault_path: &str,
+    old_device_id: &str,
+    new_device_label: &str,
+    passphrase_env: &str,
+    now_override: Option<i64>,
+) -> AppResult<()> {
+    let passphrase = passphrase_from_env(passphrase_env)?;
+    let out = trust_device_signing_key_rotate_service(
+        Path::new(vault_path),
+        old_device_id,
+        new_device_label,
+        &passphrase,
+        now_override.unwrap_or_else(now_ms),
+    )?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::json!({
+            "status": "ok",
+            "old_signing_key": out.old_signing_key,
+            "device": out.device,
+            "certificate": out.certificate,
             "signing_key": out.signing_key
         }))
         .unwrap_or_else(|_| "{}".to_string())

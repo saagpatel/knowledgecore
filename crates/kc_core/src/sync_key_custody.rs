@@ -360,6 +360,33 @@ pub fn delete_sync_signing_key(
     Ok(Some(existing.status))
 }
 
+pub fn rotate_sync_signing_key(
+    conn: &Connection,
+    device_id: &str,
+    now_ms: i64,
+) -> AppResult<Option<SyncSigningKeyStatus>> {
+    let Some(existing) = active_row(conn, device_id)? else {
+        return Ok(None);
+    };
+    conn.execute(
+        "UPDATE sync_signing_keys
+         SET rotated_at_ms=?1, deleted_at_ms=?1
+         WHERE device_id=?2 AND deleted_at_ms IS NULL",
+        params![now_ms, device_id],
+    )
+    .map_err(|e| {
+        custody_error(
+            "KC_SYNC_SIGNING_KEY_WRITE_FAILED",
+            "failed rotating sync signing key custody row",
+            serde_json::json!({ "error": e.to_string(), "device_id": device_id }),
+        )
+    })?;
+    let mut status = existing.status;
+    status.rotated_at_ms = Some(now_ms);
+    status.deleted_at_ms = Some(now_ms);
+    Ok(Some(status))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -383,5 +410,31 @@ mod tests {
             .expect("load")
             .expect("key");
         assert_eq!(loaded.to_bytes(), seed);
+    }
+
+    #[test]
+    fn sync_signing_rotation_marks_active_row_retired() {
+        let conn = Connection::open_in_memory().expect("db");
+        apply_migrations(&conn).expect("migrations");
+        assert!(rotate_sync_signing_key(&conn, "missing-device", 20)
+            .expect("missing rotate")
+            .is_none());
+
+        let seed = [7u8; 32];
+        let device =
+            trust_device_init_with_seed(&conn, "fixture", "test", 21, &seed).expect("device");
+        trust_device_verify(&conn, &device.device_id, &device.fingerprint, "test", 22)
+            .expect("verify");
+        store_sync_signing_seed(&conn, &device.device_id, &seed, "passphrase", 23).expect("store");
+
+        let retired = rotate_sync_signing_key(&conn, &device.device_id, 24)
+            .expect("rotate")
+            .expect("retired");
+        assert_eq!(retired.device_id, device.device_id);
+        assert_eq!(retired.rotated_at_ms, Some(24));
+        assert_eq!(retired.deleted_at_ms, Some(24));
+        assert!(sync_signing_key_status(&conn, &device.device_id)
+            .expect("status")
+            .is_none());
     }
 }

@@ -4,7 +4,9 @@ use crate::db::open_db;
 use crate::export::{export_bundle, ExportOptions};
 use crate::hashing::blake3_hex_prefixed;
 use crate::resource_limits::sync_snapshot_limits;
-use crate::sync_auth::verify_sync_head_author_signature_v1;
+use crate::sync_auth::{
+    verify_sync_head_author_signature_v1, SYNC_AUTHOR_SIGNATURE_ALG_ED25519_V1,
+};
 use crate::sync_merge::{
     ensure_conservative_merge_safe, ensure_conservative_plus_v2_merge_safe,
     ensure_conservative_plus_v3_merge_safe, ensure_conservative_plus_v4_merge_safe,
@@ -62,6 +64,8 @@ pub struct SyncHeadV1 {
     pub author_fingerprint: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub author_signature: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub author_signature_alg: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub author_cert_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1246,17 +1250,38 @@ fn ensure_remote_trust_matches(
             author_chain_hash,
         )?;
         let legacy_signature = legacy_sync_signature(&payload);
-        if verify_sync_head_author_signature_v1(conn, head).is_err()
-            && legacy_signature != author_signature
-        {
-            return Err(sync_error(
-                "KC_TRUST_SIGNATURE_INVALID",
-                "sync head v3 signature mismatch",
-                serde_json::json!({
-                    "snapshot_id": head.snapshot_id,
-                    "actual": author_signature
-                }),
-            ));
+        let declared_signature_alg = head
+            .author_signature_alg
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        let ed25519_result = verify_sync_head_author_signature_v1(conn, head);
+        match declared_signature_alg {
+            Some(SYNC_AUTHOR_SIGNATURE_ALG_ED25519_V1) => {
+                ed25519_result?;
+            }
+            Some(actual) => {
+                return Err(sync_error(
+                    "KC_TRUST_SIGNATURE_INVALID",
+                    "sync head v3 uses unsupported author signature algorithm",
+                    serde_json::json!({
+                        "snapshot_id": head.snapshot_id,
+                        "author_signature_alg": actual,
+                        "expected": SYNC_AUTHOR_SIGNATURE_ALG_ED25519_V1
+                    }),
+                ));
+            }
+            None if ed25519_result.is_err() && legacy_signature != author_signature => {
+                return Err(sync_error(
+                    "KC_TRUST_SIGNATURE_INVALID",
+                    "sync head v3 signature mismatch",
+                    serde_json::json!({
+                        "snapshot_id": head.snapshot_id,
+                        "actual": author_signature
+                    }),
+                ));
+            }
+            None => {}
         }
     }
 
@@ -1660,6 +1685,7 @@ pub fn sync_push(
         author_device_id: None,
         author_fingerprint: None,
         author_signature: None,
+        author_signature_alg: None,
         author_cert_id: None,
         author_chain_hash: None,
     };
@@ -1788,6 +1814,7 @@ fn sync_push_s3_target(
                     &local_author.chain_hash,
                 )?,
             )?),
+            author_signature_alg: None,
             author_cert_id: Some(local_author.cert_id.clone()),
             author_chain_hash: Some(local_author.chain_hash.clone()),
         };
@@ -2294,12 +2321,16 @@ pub fn sync_pull_target_with_mode(
 #[cfg(test)]
 mod tests {
     use super::{
-        bytes_to_hex, sign_sync_payload, sync_signature_payload, unpack_zip_snapshot,
-        unpack_zip_snapshot_with_limits, validate_snapshot_dir_limits, SyncSnapshotResourceLimits,
+        bytes_to_hex, ensure_remote_trust_matches, legacy_sync_signature, sign_sync_payload,
+        sync_signature_payload, unpack_zip_snapshot, unpack_zip_snapshot_with_limits,
+        validate_snapshot_dir_limits, SyncHeadV1, SyncSnapshotResourceLimits, SyncTrustV1,
     };
     use crate::db::apply_migrations;
+    use crate::sync_auth::SYNC_AUTHOR_SIGNATURE_ALG_ED25519_V1;
     use crate::trust::format_device_fingerprint;
+    use crate::trust_identity;
     use ed25519_dalek::{Signer, SigningKey};
+    use rusqlite::Connection;
     use std::io::Write;
     use std::sync::{Mutex, OnceLock};
     use zip::write::SimpleFileOptions;
@@ -2326,6 +2357,85 @@ mod tests {
             writer.finish().expect("finish zip");
         }
         bytes.into_inner()
+    }
+
+    fn trusted_sync_author_conn(
+        key: &SigningKey,
+    ) -> (Connection, SyncTrustV1, String, String, String, String) {
+        let conn = Connection::open_in_memory().expect("open memory db");
+        apply_migrations(&conn).expect("migrations");
+        let device_id = "device-1".to_string();
+        let cert_id = "cert-1".to_string();
+        let pubkey_hex = bytes_to_hex(&key.verifying_key().to_bytes());
+        let fingerprint = format_device_fingerprint(&key.verifying_key().to_bytes());
+        let chain_hash =
+            trust_identity::expected_cert_chain_hash(&cert_id, &device_id, &fingerprint);
+
+        conn.execute(
+            "INSERT INTO trusted_devices(device_id, label, pubkey, fingerprint, verified_at_ms, created_at_ms)
+             VALUES(?1, 'fixture', ?2, ?3, 10, 9)",
+            rusqlite::params![device_id, pubkey_hex, fingerprint],
+        )
+        .expect("insert trusted device");
+        conn.execute(
+            "INSERT INTO identity_providers(provider_id, issuer, audience, enabled, created_at_ms)
+             VALUES('default', 'https://default.oidc.knowledgecore.local', 'kc-desktop:default', 1, 10)",
+            [],
+        )
+        .expect("insert identity provider");
+        conn.execute(
+            "INSERT INTO device_certificates(
+               cert_id, device_id, provider_id, subject, cert_chain_hash, issued_at_ms, expires_at_ms, verified_at_ms, created_at_ms
+             )
+             VALUES(?1, ?2, 'default', 'sub:sync-author', ?3, 11, 3600011, 12, 11)",
+            rusqlite::params![cert_id, device_id, chain_hash],
+        )
+        .expect("insert device certificate");
+
+        let trust = SyncTrustV1 {
+            model: super::TRUST_MODEL_PASSPHRASE_V1.to_string(),
+            fingerprint: "blake3:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                .to_string(),
+            updated_at_ms: 100,
+        };
+        (conn, trust, device_id, fingerprint, cert_id, chain_hash)
+    }
+
+    fn legacy_signed_head(
+        trust: &SyncTrustV1,
+        device_id: &str,
+        fingerprint: &str,
+        cert_id: &str,
+        chain_hash: &str,
+    ) -> SyncHeadV1 {
+        let snapshot_id =
+            "blake3:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string();
+        let manifest_hash =
+            "blake3:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc".to_string();
+        let created_at_ms = 123456789;
+        let payload = sync_signature_payload(
+            &snapshot_id,
+            &manifest_hash,
+            created_at_ms,
+            device_id,
+            fingerprint,
+            cert_id,
+            chain_hash,
+        )
+        .expect("legacy payload");
+        SyncHeadV1 {
+            schema_version: 3,
+            snapshot_id,
+            manifest_hash,
+            created_at_ms,
+            trust: Some(trust.clone()),
+            author_device_id: Some(device_id.to_string()),
+            author_fingerprint: Some(fingerprint.to_string()),
+            author_signature: Some(legacy_sync_signature(&payload)),
+            author_signature_alg: None,
+            author_cert_id: Some(cert_id.to_string()),
+            author_chain_hash: Some(chain_hash.to_string()),
+        }
     }
 
     #[test]
@@ -2453,5 +2563,37 @@ mod tests {
         let expected = bytes_to_hex(&key.sign(&payload).to_bytes());
         assert_eq!(signature, expected);
         std::env::remove_var("KC_SYNC_AUTHOR_SIGNING_KEY_HEX");
+    }
+
+    #[test]
+    fn declared_ed25519_sync_head_rejects_legacy_signature_fallback() {
+        let key = SigningKey::from_bytes(&[7u8; 32]);
+        let (conn, trust, device_id, fingerprint, cert_id, chain_hash) =
+            trusted_sync_author_conn(&key);
+        let mut head = legacy_signed_head(&trust, &device_id, &fingerprint, &cert_id, &chain_hash);
+        head.author_signature_alg = Some(SYNC_AUTHOR_SIGNATURE_ALG_ED25519_V1.to_string());
+
+        let err = ensure_remote_trust_matches(&conn, Some(&head), &trust)
+            .expect_err("declared Ed25519 must not fall back to legacy signature");
+        assert_eq!(err.code, "KC_TRUST_SIGNATURE_INVALID");
+    }
+
+    #[test]
+    fn sync_head_rejects_unknown_author_signature_alg() {
+        let key = SigningKey::from_bytes(&[7u8; 32]);
+        let (conn, trust, device_id, fingerprint, cert_id, chain_hash) =
+            trusted_sync_author_conn(&key);
+        let mut head = legacy_signed_head(&trust, &device_id, &fingerprint, &cert_id, &chain_hash);
+        head.author_signature_alg = Some("legacy_blake3_v1".to_string());
+
+        let err = ensure_remote_trust_matches(&conn, Some(&head), &trust)
+            .expect_err("unknown signature algorithm must fail closed");
+        assert_eq!(err.code, "KC_TRUST_SIGNATURE_INVALID");
+        assert_eq!(
+            err.details
+                .get("author_signature_alg")
+                .and_then(|value| value.as_str()),
+            Some("legacy_blake3_v1")
+        );
     }
 }

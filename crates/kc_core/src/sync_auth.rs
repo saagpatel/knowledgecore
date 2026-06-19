@@ -294,6 +294,7 @@ mod tests {
             author_device_id: Some(payload.author_device_id.clone()),
             author_fingerprint: Some(payload.author_fingerprint.clone()),
             author_signature: Some(signature_hex),
+            author_signature_alg: None,
             author_cert_id: Some(payload.author_cert_id.clone()),
             author_chain_hash: Some(payload.author_chain_hash.clone()),
         }

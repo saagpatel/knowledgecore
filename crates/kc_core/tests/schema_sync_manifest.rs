@@ -30,6 +30,10 @@ fn sync_head_schema() -> serde_json::Value {
           "type": ["string", "null"],
           "pattern": "^[0-9a-f]{128}$"
         },
+        "author_signature_alg": {
+          "type": ["string", "null"],
+          "enum": ["ed25519_sync_head_v1", null]
+        },
         "author_cert_id": { "type": ["string", "null"] },
         "author_chain_hash": { "type": ["string", "null"], "pattern": "^blake3:[0-9a-f]{64}$" }
       },
@@ -103,10 +107,34 @@ fn schema_sync_head_accepts_valid_payload() {
       "author_device_id": "f7ca3e7b-e380-4896-bde1-b2de37789b22",
       "author_fingerprint": "aaaaaaaa:bbbbbbbb:cccccccc:dddddddd:eeeeeeee:ffffffff:11111111:22222222",
       "author_signature": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "author_signature_alg": "ed25519_sync_head_v1",
       "author_cert_id": "4f299112-e7a9-4956-bc63-f24847c110ca",
       "author_chain_hash": "blake3:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
     });
     assert!(schema.is_valid(&payload));
+}
+
+#[test]
+fn schema_sync_head_v3_rejects_unknown_author_signature_alg() {
+    let schema = validator_for(&sync_head_schema()).expect("compile sync head schema");
+    let invalid = serde_json::json!({
+      "schema_version": 3,
+      "snapshot_id": "blake3:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "manifest_hash": "blake3:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "created_at_ms": 100,
+      "trust": {
+        "model": "passphrase_v1",
+        "fingerprint": "blake3:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "updated_at_ms": 100
+      },
+      "author_device_id": "f7ca3e7b-e380-4896-bde1-b2de37789b22",
+      "author_fingerprint": "aaaaaaaa:bbbbbbbb:cccccccc:dddddddd:eeeeeeee:ffffffff:11111111:22222222",
+      "author_signature": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "author_signature_alg": "legacy_blake3_v1",
+      "author_cert_id": "4f299112-e7a9-4956-bc63-f24847c110ca",
+      "author_chain_hash": "blake3:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    });
+    assert!(!schema.is_valid(&invalid));
 }
 
 #[test]

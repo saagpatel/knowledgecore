@@ -120,6 +120,7 @@ fn sync_push_conflict_emits_artifact() {
         author_device_id: None,
         author_fingerprint: None,
         author_signature: None,
+        author_signature_alg: None,
         author_cert_id: None,
         author_chain_hash: None,
     };

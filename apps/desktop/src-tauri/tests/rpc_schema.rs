@@ -260,6 +260,7 @@ fn rpc_schema_sync_accepts_uri_targets() {
         "vault_path": "/tmp/vault",
         "target_path": "s3://demo-bucket/kc",
         "auto_merge": "conservative",
+        "strict_auth": true,
         "now_ms": 124
     });
     assert!(serde_json::from_value::<SyncPullReq>(pull_with_merge).is_ok());

@@ -40,7 +40,8 @@ Legacy undeclared v3 signatures can be removed only after compatibility evidence
 - Done: add read-only `sync auth-readiness` telemetry/reporting that classifies sync heads as declared Ed25519, undeclared Ed25519-compatible, undeclared legacy fallback, legacy schema, missing, unsupported, or invalid.
 - Done: expose a user-visible CLI/core-service/desktop RPC readiness report that lists whether a target still depends on undeclared legacy fallback.
 - Done: expose a multi-target CLI rollout report and generated fixture coverage for missing targets, legacy schema heads, declared Ed25519 heads, undeclared Ed25519-compatible heads, undeclared legacy fallback heads, unsupported declared algorithms, and invalid declared heads.
-- Only after that evidence exists, add a separate opt-in enforcement flag or schema-version transition plan.
+- Done: add read-only `sync auth-strict-check` as an operator/CI gate and opt-in `sync pull --strict-auth` as a default-off runtime trial that fails before applying non-strict-ready heads.
+- Only after that evidence exists, add a separate default-enforcement flag or schema-version transition plan.
 - Final removal must fail undeclared legacy fallback heads with a deterministic sync-auth error and clear remediation guidance.
 
 ## Safest Implementation Sequence
@@ -48,7 +49,9 @@ Legacy undeclared v3 signatures can be removed only after compatibility evidence
 2. Done: add a read-only sync auth readiness report for local sync targets; no writes, no migrations, no cloud behavior changes.
 3. Done: add CLI/core-service/desktop RPC copy for local re-enrollment recovery when custody is missing, retired, or deleted.
 4. Done: add compatibility fixtures for missing targets, legacy schema heads, undeclared v3 heads, declared Ed25519 heads, and invalid/unsupported declared heads.
-5. Add opt-in strict mode for rejecting undeclared legacy fallback before making it default.
+5. Done: add a read-only strict-check gate for rollout readiness before runtime rejection.
+6. Done: add opt-in runtime strict pull for rejecting undeclared legacy fallback before making it default.
+7. Add approval-gated default strict mode only after compatibility evidence proves existing heads are not stranded.
 
 ## Non-Goals
 - No private signing-key export.
@@ -65,7 +68,9 @@ Legacy undeclared v3 signatures can be removed only after compatibility evidence
 - Current implementation wraps replacement device creation, certificate enrollment, new custody storage, and old custody retirement in one transaction so late failures do not commit partial rotation state.
 - Done: deleted/lost custody produces clear re-enrollment guidance without silently downgrading declared-head signing or exposing private seed material.
 - Recovery re-enrollment can author a new declared Ed25519 head without requiring old private seed material.
-- Future fallback-removal strict mode rejects undeclared legacy signatures while preserving declared Ed25519 acceptance.
+- Done: read-only strict-check gate blocks non-strict-ready targets without mutating targets, removing fallback, or changing pull/push behavior.
+- Done: opt-in strict pull rejects non-strict-ready remote heads before apply while default pull remains compatibility-preserving.
+- Future default fallback-removal strict mode rejects undeclared legacy signatures while preserving declared Ed25519 acceptance.
 - Fixtures prove old declared heads remain verifiable after old private custody is deleted.
 
 ## Approval Gates

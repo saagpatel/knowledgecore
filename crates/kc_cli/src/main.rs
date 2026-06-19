@@ -229,6 +229,10 @@ fn main() {
                 vault_path,
                 target_paths,
             } => commands::sync::run_auth_readiness_report(&vault_path, &target_paths),
+            SyncCmd::AuthStrictCheck {
+                vault_path,
+                target_paths,
+            } => commands::sync::run_auth_strict_check(&vault_path, &target_paths),
             SyncCmd::Push {
                 vault_path,
                 target_path,
@@ -238,8 +242,15 @@ fn main() {
                 vault_path,
                 target_path,
                 auto_merge,
+                strict_auth,
                 now_ms,
-            } => commands::sync::run_pull(&vault_path, &target_path, now_ms, auto_merge.as_deref()),
+            } => commands::sync::run_pull(
+                &vault_path,
+                &target_path,
+                now_ms,
+                auto_merge.as_deref(),
+                strict_auth,
+            ),
             SyncCmd::MergePreview {
                 vault_path,
                 target_path,

@@ -35,7 +35,8 @@ Remote sync heads should be accepted only when authorship is verified against an
 6. Done: add explicit runtime rotation that enrolls a replacement signing device and retires old local custody while preserving old public trust records.
 7. Done: add read-only sync auth readiness reporting that classifies remote heads as declared Ed25519, undeclared Ed25519-compatible, undeclared legacy fallback, legacy schema, missing, or invalid.
 8. Done: add generated rollout-evidence fixtures and a multi-target CLI report for strict-ready, strict-blocked, legacy-fallback-dependent, invalid, and per-classification counts.
-9. Remaining: separately approve remote trust import and the point at which undeclared legacy BLAKE3-derived author signatures become hard failures.
+9. Done: add a read-only `sync auth-strict-check` rollout gate and opt-in `sync pull --strict-auth`; both fail with `KC_SYNC_AUTH_STRICT_BLOCKED` when a target/head is not strict-ready, while default runtime sync behavior is unchanged.
+10. Remaining: separately approve remote trust import and the point at which undeclared legacy BLAKE3-derived author signatures become hard failures.
 
 ## Implementation Checkpoint
 - Added a private `kc_core::sync_auth` helper module for future Ed25519 signed-head work.
@@ -52,6 +53,7 @@ Remote sync heads should be accepted only when authorship is verified against an
 - Added the rotation/recovery/fallback-removal decision record as `docs/25-sync-signing-key-rotation-recovery-and-fallback-plan-2026-06-19.md`.
 - Added read-only `sync auth-readiness` CLI/core-service/desktop RPC reporting for local and URI sync targets; it performs no writes, migrations, fallback removal, cloud expansion, or strict-mode enforcement.
 - Added read-only `sync auth-readiness-report` CLI aggregation over multiple targets, with generated fixture coverage for missing targets, legacy schema heads, declared Ed25519 heads, undeclared Ed25519-compatible heads, undeclared legacy fallback heads, unsupported declared algorithms, and invalid declared heads.
+- Added read-only `sync auth-strict-check` as an operator/CI rollout gate and opt-in `sync pull --strict-auth` as a default-off runtime trial before any default strict-mode enforcement or fallback removal.
 - S3 sync emits declared Ed25519 heads when the custody key is available through the vault unlock/passphrase boundary.
 - No cloud behavior, remote trust bootstrapping, background sync, or legacy fallback removal changed in this checkpoint.
 

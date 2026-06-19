@@ -112,6 +112,29 @@ fn cli_sync_push_and_status_work() {
         Some(false)
     );
 
+    let strict_pull = Command::new(bin)
+        .args([
+            "sync",
+            "pull",
+            vault_root.to_string_lossy().as_ref(),
+            sync_target.to_string_lossy().as_ref(),
+            "--strict-auth",
+            "--now-ms",
+            "101",
+        ])
+        .output()
+        .expect("run strict sync pull");
+    assert!(
+        !strict_pull.status.success(),
+        "strict pull unexpectedly succeeded: {}",
+        String::from_utf8_lossy(&strict_pull.stdout)
+    );
+    assert!(
+        String::from_utf8_lossy(&strict_pull.stderr).contains("KC_SYNC_AUTH_STRICT_BLOCKED"),
+        "strict pull stderr: {}",
+        String::from_utf8_lossy(&strict_pull.stderr)
+    );
+
     let empty_target = root.join("empty-sync-target");
     let readiness_report = Command::new(bin)
         .args([
@@ -159,6 +182,46 @@ fn cli_sync_push_and_status_work() {
             .and_then(|v| v.get("no_remote_head"))
             .and_then(|v| v.as_i64()),
         Some(1)
+    );
+
+    let strict_blocked = Command::new(bin)
+        .args([
+            "sync",
+            "auth-strict-check",
+            vault_root.to_string_lossy().as_ref(),
+            sync_target.to_string_lossy().as_ref(),
+            empty_target.to_string_lossy().as_ref(),
+        ])
+        .output()
+        .expect("run blocked sync auth-strict-check");
+    assert!(!strict_blocked.status.success());
+    assert!(
+        String::from_utf8_lossy(&strict_blocked.stderr).contains("KC_SYNC_AUTH_STRICT_BLOCKED"),
+        "auth strict check stderr: {}",
+        String::from_utf8_lossy(&strict_blocked.stderr)
+    );
+
+    let strict_ready = Command::new(bin)
+        .args([
+            "sync",
+            "auth-strict-check",
+            vault_root.to_string_lossy().as_ref(),
+            empty_target.to_string_lossy().as_ref(),
+        ])
+        .output()
+        .expect("run ready sync auth-strict-check");
+    assert!(
+        strict_ready.status.success(),
+        "ready auth strict check stderr: {}",
+        String::from_utf8_lossy(&strict_ready.stderr)
+    );
+    let strict_ready_json: serde_json::Value =
+        serde_json::from_slice(&strict_ready.stdout).expect("auth strict check json");
+    assert_eq!(
+        strict_ready_json
+            .get("strict_blocked_count")
+            .and_then(|v| v.as_i64()),
+        Some(0)
     );
     assert!(!empty_target.exists());
 }

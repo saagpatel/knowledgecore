@@ -60,6 +60,7 @@ Use vault-local encrypted key custody rather than environment variables for prod
 - `trust device signing-key-rotate` creates a replacement signing device and certificate, stores the new encrypted seed, then marks the old local custody row rotated/deleted while leaving old public trust records readable.
 - S3 sync uses an unlocked custody key to emit declared Ed25519 heads; if no custody key exists, compatibility behavior is preserved.
 - Read-only `sync auth-readiness` CLI/core-service/desktop RPC reporting classifies local and URI sync targets without writes, migrations, fallback removal, cloud expansion, or strict-mode enforcement.
+- Read-only `sync auth-readiness-report` CLI aggregation now summarizes multiple generated or operator-provided targets by strict readiness, legacy fallback dependency, invalid count, and classification counts.
 
 ## Non-Goals
 - No cloud sync expansion.
@@ -76,7 +77,7 @@ Use vault-local encrypted key custody rather than environment variables for prod
 - Any vault metadata/schema change requires fixtures, downgrade/rollback expectations, and no private-document ingestion.
 
 ## Next Safe Lane
-Build compatibility fixtures and rollout evidence with the read-only `sync auth-readiness` report before any private-key recovery, schema migration, strict-mode enforcement, or undeclared legacy fallback removal.
+Use `sync auth-readiness-report` evidence to design the next approval-gated strict-mode or fallback-removal rollout; do not enforce strict mode, remove fallback, change schema, or add private-key recovery without that approval.
 
 ## Verification Expectations for the Next Code Lane
 - `cargo fmt --all -- --check`
@@ -89,4 +90,4 @@ Build compatibility fixtures and rollout evidence with the read-only `sync auth-
 - `node scripts/dependency-watch.mjs`
 
 ## Done Criteria
-This lane is done when encrypted local custody, custody-signed declared S3 heads, replacement-device rotation, read-only auth-readiness reporting, and compatibility fallback preservation are verified, with recovery and undeclared legacy fallback removal still approval-gated.
+This lane is done when encrypted local custody, custody-signed declared S3 heads, replacement-device rotation, read-only auth-readiness reporting, generated rollout evidence, and compatibility fallback preservation are verified, with recovery and undeclared legacy fallback removal still approval-gated.

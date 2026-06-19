@@ -424,6 +424,11 @@ pub enum SyncCmd {
         vault_path: String,
         target_path: String,
     },
+    AuthReadinessReport {
+        vault_path: String,
+        #[arg(required = true)]
+        target_paths: Vec<String>,
+    },
     Push {
         vault_path: String,
         target_path: String,

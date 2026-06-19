@@ -34,11 +34,29 @@ Define sync head schema v3 with managed-identity-backed device certificate autho
   - unknown non-empty `author_signature_alg` values fail closed
   - undeclared v3 signatures remain compatibility-only during the legacy fallback window
 
+## Sync auth readiness report v1
+- `sync auth-readiness` is a read-only inspection surface for one target.
+- `sync auth-readiness-report` aggregates multiple target inspections for rollout evidence.
+- Per-target classifications:
+  - `no_remote_head`
+  - `legacy_schema`
+  - `declared_ed25519`
+  - `undeclared_ed25519_compatible`
+  - `undeclared_legacy_fallback`
+  - `unsupported_declared_algorithm`
+  - `invalid`
+- `strict_ready=true` is allowed only for `no_remote_head` and valid `declared_ed25519` heads.
+- `depends_on_legacy_fallback=true` is set for legacy schema heads and undeclared legacy fallback heads.
+- Aggregate fields are deterministic: `target_count`, `strict_ready_count`, `strict_blocked_count`, `depends_on_legacy_fallback_count`, `invalid_count`, lexical `classification_counts`, and `reports` in caller-provided target order.
+- Reports do not include generated timestamps, generated ids, migrations, writes, strict-mode enforcement, fallback removal, or cloud behavior changes.
+
 ## Determinism and version-boundary rules
 - v3 payload canonicalization order is fixed.
 - Signature input bytes are canonical-json and stable.
 - Custody-signed writes emit `author_signature_alg = "ed25519_sync_head_v1"`; env-key compatibility writes remain undeclared until key-custody rollout is complete.
+- Readiness aggregate `classification_counts` ordering is stable because it is emitted from a lexical map, and `reports` ordering is stable because it follows caller input order.
 - Any signing input shape changes require schema version bump.
+- Any readiness classification, `strict_ready`, fallback-dependency, count, or ordering semantic change requires a readiness report version bump.
 - v2 compatibility remains read-only for migration period.
 
 ## Failure modes and AppError mapping
@@ -52,6 +70,7 @@ Define sync head schema v3 with managed-identity-backed device certificate autho
 - v2 heads remain readable and mapped correctly.
 - Invalid/missing v3 authorship fields fail deterministically.
 - Signature mismatch fails with `KC_TRUST_SIGNATURE_INVALID`.
+- Generated readiness fixtures cover missing heads, legacy schema heads, declared Ed25519 heads, undeclared Ed25519-compatible heads, undeclared legacy fallback heads, unsupported declared algorithms, invalid declared heads, and aggregate rollout counts.
 
 ## Rollout gate and stop conditions
 ### Rollout gate

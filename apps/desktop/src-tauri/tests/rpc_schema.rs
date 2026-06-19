@@ -4,15 +4,16 @@ use apps_desktop_tauri::rpc::{
     LineagePolicyAddReq, LineagePolicyBindReq, LineagePolicyListReq, LineageQueryReq,
     LineageQueryV2Req, LineageRoleGrantReq, LineageRoleListReq, LineageRoleRevokeReq,
     SearchQueryReq, SyncMergePreviewReq, SyncPullReq, SyncPushReq, SyncStatusReq,
-    TrustDeviceEnrollReq, TrustDeviceListReq, TrustDeviceVerifyChainReq, TrustIdentityCompleteReq,
-    TrustIdentityStartReq, TrustPolicySetReq, TrustPolicySetTenantTemplateReq, TrustProviderAddReq,
-    TrustProviderDisableReq, TrustProviderDiscoverReq, TrustProviderListReq,
-    VaultEncryptionEnableReq, VaultEncryptionMigrateReq, VaultEncryptionStatusReq, VaultInitReq,
-    VaultLockReq, VaultLockStatusReq, VaultRecoveryEscrowEnableReq,
-    VaultRecoveryEscrowProviderAddReq, VaultRecoveryEscrowProviderListReq,
-    VaultRecoveryEscrowRestoreReq, VaultRecoveryEscrowRotateAllReq, VaultRecoveryEscrowRotateReq,
-    VaultRecoveryEscrowStatusReq, VaultRecoveryGenerateReq, VaultRecoveryStatusReq,
-    VaultRecoveryVerifyReq, VaultUnlockReq,
+    TrustDeviceEnrollReq, TrustDeviceEnrollSigningKeyReq, TrustDeviceListReq,
+    TrustDeviceSigningKeyDeleteReq, TrustDeviceSigningKeyStatusReq, TrustDeviceVerifyChainReq,
+    TrustIdentityCompleteReq, TrustIdentityStartReq, TrustPolicySetReq,
+    TrustPolicySetTenantTemplateReq, TrustProviderAddReq, TrustProviderDisableReq,
+    TrustProviderDiscoverReq, TrustProviderListReq, VaultEncryptionEnableReq,
+    VaultEncryptionMigrateReq, VaultEncryptionStatusReq, VaultInitReq, VaultLockReq,
+    VaultLockStatusReq, VaultRecoveryEscrowEnableReq, VaultRecoveryEscrowProviderAddReq,
+    VaultRecoveryEscrowProviderListReq, VaultRecoveryEscrowRestoreReq,
+    VaultRecoveryEscrowRotateAllReq, VaultRecoveryEscrowRotateReq, VaultRecoveryEscrowStatusReq,
+    VaultRecoveryGenerateReq, VaultRecoveryStatusReq, VaultRecoveryVerifyReq, VaultUnlockReq,
 };
 
 #[test]
@@ -371,6 +372,27 @@ fn rpc_schema_trust_device_requests_validate_shapes() {
         "now_ms": 103
     });
     assert!(serde_json::from_value::<TrustDeviceVerifyChainReq>(verify_chain).is_ok());
+
+    let enroll_signing_key = serde_json::json!({
+        "vault_path": "/tmp/vault",
+        "device_label": "desktop",
+        "passphrase": "secret",
+        "now_ms": 104
+    });
+    assert!(serde_json::from_value::<TrustDeviceEnrollSigningKeyReq>(enroll_signing_key).is_ok());
+
+    let signing_key_status = serde_json::json!({
+        "vault_path": "/tmp/vault",
+        "device_id": "device-1"
+    });
+    assert!(serde_json::from_value::<TrustDeviceSigningKeyStatusReq>(signing_key_status).is_ok());
+
+    let signing_key_delete = serde_json::json!({
+        "vault_path": "/tmp/vault",
+        "device_id": "device-1",
+        "now_ms": 105
+    });
+    assert!(serde_json::from_value::<TrustDeviceSigningKeyDeleteReq>(signing_key_delete).is_ok());
 
     let list = serde_json::json!({
         "vault_path": "/tmp/vault"

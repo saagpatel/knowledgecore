@@ -283,6 +283,18 @@ pub enum TrustDeviceCmd {
         #[arg(long = "now-ms")]
         now_ms: Option<i64>,
     },
+    SigningKeyStatus {
+        vault_path: String,
+        #[arg(long = "device-id")]
+        device_id: String,
+    },
+    SigningKeyDelete {
+        vault_path: String,
+        #[arg(long = "device-id")]
+        device_id: String,
+        #[arg(long = "now-ms")]
+        now_ms: Option<i64>,
+    },
     List {
         vault_path: String,
     },

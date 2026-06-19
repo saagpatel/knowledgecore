@@ -183,6 +183,76 @@ fn cli_trust_device_enroll_signing_key_records_custody_metadata() {
         .unwrap_or_default()
         .starts_with("sync-signing:"));
     assert!(enroll_json.get("seed_ciphertext").is_none());
+    let device_id = enroll_json
+        .get("device")
+        .and_then(|v| v.get("device_id"))
+        .and_then(|v| v.as_str())
+        .expect("device id");
+
+    let status = run_cli(&[
+        "trust",
+        "device",
+        "signing-key-status",
+        &vault_path,
+        "--device-id",
+        device_id,
+    ]);
+    assert!(
+        status.status.success(),
+        "signing key status stderr: {}",
+        String::from_utf8_lossy(&status.stderr)
+    );
+    let status_json: serde_json::Value =
+        serde_json::from_slice(&status.stdout).expect("status json");
+    assert_eq!(
+        status_json
+            .get("signing_key")
+            .and_then(|v| v.get("device_id"))
+            .and_then(|v| v.as_str()),
+        Some(device_id)
+    );
+
+    let deleted = run_cli(&[
+        "trust",
+        "device",
+        "signing-key-delete",
+        &vault_path,
+        "--device-id",
+        device_id,
+        "--now-ms",
+        "33",
+    ]);
+    assert!(
+        deleted.status.success(),
+        "signing key delete stderr: {}",
+        String::from_utf8_lossy(&deleted.stderr)
+    );
+    let delete_json: serde_json::Value =
+        serde_json::from_slice(&deleted.stdout).expect("delete json");
+    assert_eq!(
+        delete_json.get("deleted").and_then(|v| v.as_bool()),
+        Some(true)
+    );
+
+    let status_after_delete = run_cli(&[
+        "trust",
+        "device",
+        "signing-key-status",
+        &vault_path,
+        "--device-id",
+        device_id,
+    ]);
+    assert!(
+        status_after_delete.status.success(),
+        "signing key status after delete stderr: {}",
+        String::from_utf8_lossy(&status_after_delete.stderr)
+    );
+    let status_after_delete_json: serde_json::Value =
+        serde_json::from_slice(&status_after_delete.stdout).expect("status after delete json");
+    assert!(status_after_delete_json
+        .get("signing_key")
+        .unwrap()
+        .is_null());
 }
 
 #[test]

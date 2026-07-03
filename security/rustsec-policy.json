@@ -1,7 +1,7 @@
 {
   "metadata": {
     "owner": "engineering",
-    "updated_on": "2026-06-19",
+    "updated_on": "2026-07-03",
     "max_review_window_days": 45
   },
   "allow": [
@@ -84,6 +84,16 @@
       "id": "RUSTSEC-2024-0429",
       "review_by": "2026-07-19",
       "reason": "unsound glib in gtk3 transitives; prioritize tauri/linux backend migration."
+    },
+    {
+      "id": "RUSTSEC-2026-0194",
+      "review_by": "2026-08-17",
+      "reason": "quick-xml is pulled transitively by tauri via plist; plist 1.9.0 still caps quick-xml below the patched 0.41 line."
+    },
+    {
+      "id": "RUSTSEC-2026-0195",
+      "review_by": "2026-08-17",
+      "reason": "quick-xml is pulled transitively by tauri via plist; plist 1.9.0 still caps quick-xml below the patched 0.41 line."
     }
   ]
 }

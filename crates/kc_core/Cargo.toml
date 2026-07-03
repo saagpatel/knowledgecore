@@ -11,7 +11,7 @@ aws-sdk-s3 = { version = "1.115", default-features = false, features = ["default
 aws-sdk-secretsmanager = { version = "1.100", default-features = false, features = ["default-https-client", "rt-tokio"] }
 argon2 = "0.5"
 blake3.workspace = true
-chacha20poly1305 = "0.10"
+chacha20poly1305 = "0.11"
 ed25519-dalek = "2.2"
 getrandom = "0.4"
 regex = "1.12"

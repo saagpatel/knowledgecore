@@ -4667,8 +4667,6 @@ dependencies = [
 name = "kc_index"
 version = "0.1.0"
 dependencies = [
- "arrow-array",
- "arrow-schema",
  "criterion",
  "futures",
  "kc_core",

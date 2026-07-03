@@ -1,13 +1,13 @@
 use crate::embedding::{Embedder, EmbeddingIdentity};
-use arrow_array::{
-    types::Float32Type, Array, FixedSizeListArray, Float32Array, Int64Array, RecordBatch,
-    RecordBatchIterator, RecordBatchReader, StringArray,
-};
-use arrow_schema::{DataType, Field, Schema};
 use futures::TryStreamExt;
 use kc_core::app_error::{AppError, AppResult};
 use kc_core::index_traits::{VectorCandidate, VectorIndex};
 use kc_core::types::{ChunkId, DocId};
+use lancedb::arrow::arrow_array::{
+    types::Float32Type, Array, FixedSizeListArray, Float32Array, Int64Array, RecordBatch,
+    RecordBatchIterator, RecordBatchReader, StringArray,
+};
+use lancedb::arrow::arrow_schema::{DataType, Field, Schema};
 use lancedb::connect;
 use lancedb::query::ExecutableQuery;
 use serde::{Deserialize, Serialize};

@@ -14,6 +14,8 @@ pub struct CanonicalTextArtifact {
     pub canonical_bytes: Vec<u8>,
     pub canonical_hash: CanonicalHash,
     pub canonical_object_hash: ObjectHash,
+    #[serde(default)]
+    pub page_count: Option<u32>,
     pub extractor_name: String,
     pub extractor_version: String,
     pub extractor_flags_json: String,

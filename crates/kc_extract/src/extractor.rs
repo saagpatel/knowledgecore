@@ -132,6 +132,7 @@ impl ExtractService for DefaultExtractor {
             canonical_bytes,
             canonical_hash: CanonicalHash(hash.clone()),
             canonical_object_hash: ObjectHash(hash),
+            page_count: None,
             extractor_name: "kc_extract.default".to_string(),
             extractor_version: "1".to_string(),
             extractor_flags_json,

@@ -122,6 +122,7 @@ fn ask_runs_retrieved_only_end_to_end() {
         canonical_bytes: canonical_text.clone(),
         canonical_hash: CanonicalHash(canonical_hash.clone()),
         canonical_object_hash: kc_core::types::ObjectHash(canonical_hash),
+        page_count: None,
         extractor_name: "test".to_string(),
         extractor_version: "1".to_string(),
         extractor_flags_json: "{}".to_string(),

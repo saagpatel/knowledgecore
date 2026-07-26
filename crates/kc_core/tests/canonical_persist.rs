@@ -29,6 +29,7 @@ fn canonical_persist_round_trip() {
         canonical_bytes: canonical_bytes.clone(),
         canonical_hash: CanonicalHash(canonical_hash.clone()),
         canonical_object_hash: ObjectHash(canonical_hash),
+        page_count: None,
         extractor_name: "test".to_string(),
         extractor_version: "1".to_string(),
         extractor_flags_json: "{}".to_string(),
@@ -67,6 +68,7 @@ fn canonical_persist_rejects_hash_mismatch() {
         canonical_object_hash: ObjectHash(
             "blake3:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".to_string(),
         ),
+        page_count: None,
         extractor_name: "test".to_string(),
         extractor_version: "1".to_string(),
         extractor_flags_json: "{}".to_string(),

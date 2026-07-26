@@ -236,6 +236,7 @@ mod tests {
                 canonical_bytes: canonical,
                 canonical_hash: CanonicalHash(hash.clone()),
                 canonical_object_hash: ObjectHash(hash),
+                page_count: None,
                 extractor_name: "test".to_string(),
                 extractor_version: "1".to_string(),
                 extractor_flags_json: "{}".to_string(),

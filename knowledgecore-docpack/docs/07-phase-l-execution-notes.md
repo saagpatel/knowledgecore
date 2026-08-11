@@ -8,9 +8,9 @@ Track baseline, milestone progression, gate evidence, and risk/follow-up closure
 - Baseline SHA for Phase L kickoff: `51a8b2b`
 
 ## Verification Command Sources
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/AGENTS.md`
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/SCHEMA_REGISTRY.md`
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/CHECKLIST_VERIFICATION.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/AGENTS.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/SCHEMA_REGISTRY.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/CHECKLIST_VERIFICATION.md`
 
 ## Milestone Ledger (Merge-As-We-Go)
 | Milestone | Branch | Commit | Merge Mode | Status |

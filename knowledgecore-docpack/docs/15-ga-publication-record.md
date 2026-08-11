@@ -14,14 +14,14 @@
 ## Artifact Publication Channel
 - Channel type: local internal release channel
 - Location:
-  - `/Users/d/.knowledgecore-release-channel/pilot/v0.1.0-pilot.1`
+  - `~/.knowledgecore-release-channel/pilot/v0.1.0-pilot.1`
 - Published artifact(s):
-  - `/Users/d/.knowledgecore-release-channel/pilot/v0.1.0-pilot.1/KnowledgeCore Desktop_0.1.0_aarch64.dmg`
-  - `/Users/d/.knowledgecore-release-channel/pilot/v0.1.0-pilot.1/SHA256SUMS.txt`
+  - `~/.knowledgecore-release-channel/pilot/v0.1.0-pilot.1/KnowledgeCore Desktop_0.1.0_aarch64.dmg`
+  - `~/.knowledgecore-release-channel/pilot/v0.1.0-pilot.1/SHA256SUMS.txt`
 
 ## Source Artifact Traceability
 - Build source artifact:
-  - `/Users/d/Projects/knowledgecore/target/release/bundle/dmg/KnowledgeCore Desktop_0.1.0_aarch64.dmg`
+  - `~/Projects/knowledgecore/target/release/bundle/dmg/KnowledgeCore Desktop_0.1.0_aarch64.dmg`
 - Build SHA-256:
   - `93a1dfc289fd271bb04933f3dd85726f4dc57f3d178980cdd7c930acfe704fc3`
 
@@ -31,16 +31,16 @@
 
 ## Post-Publish Integrity Verification
 - Verification command:
-  - `(cd /Users/d/.knowledgecore-release-channel/pilot/v0.1.0-pilot.1 && shasum -a 256 -c SHA256SUMS.txt)`
+  - `(cd ~/.knowledgecore-release-channel/pilot/v0.1.0-pilot.1 && shasum -a 256 -c SHA256SUMS.txt)`
 - Result: `PASS`
 
 ## Release Notes Source
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/11-ga-release-notes-v0.1.0.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/docs/11-ga-release-notes-v0.1.0.md`
 
 ## Trust Posture Disclosure
 - This publication does not satisfy GA trust requirements because Developer ID signing and notarization remain unavailable.
 - Blocking evidence is documented in:
-  - `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/10-ga-artifact-manifest-v0.1.0.md`
+  - `~/Projects/knowledgecore/knowledgecore-docpack/docs/10-ga-artifact-manifest-v0.1.0.md`
 
 ## Distribution Policy
 - Approved for internal pilot audience only.

@@ -7,9 +7,9 @@
 - Candidate target: `v0.1.0`
 
 ## Command Source of Truth
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/AGENTS.md`
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/04-post-dk-ops-and-followup-policy.md`
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/CHECKLIST_VERIFICATION.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/AGENTS.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/docs/04-post-dk-ops-and-followup-policy.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/CHECKLIST_VERIFICATION.md`
 
 ## Decision Outcome
 - GA track: `NO-GO`
@@ -22,11 +22,11 @@
 
 ## Gate Evidence
 - Full validation baseline and bench-x2 evidence:
-  - `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/09-ga-validation-evidence.md`
+  - `~/Projects/knowledgecore/knowledgecore-docpack/docs/09-ga-validation-evidence.md`
 - Artifact inventory and trust-gap evidence:
-  - `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/10-ga-artifact-manifest-v0.1.0.md`
+  - `~/Projects/knowledgecore/knowledgecore-docpack/docs/10-ga-artifact-manifest-v0.1.0.md`
 - Final C4 rerun evidence:
-  - `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/12-ga-go-no-go-checklist.md`
+  - `~/Projects/knowledgecore/knowledgecore-docpack/docs/12-ga-go-no-go-checklist.md`
 
 ## Blocking Conditions for GA (Open)
 - No Developer ID signing identity on release host.
@@ -51,6 +51,6 @@
 - Release owner: `Approved pilot GO; GA NO-GO`
 
 ## Linked Artifacts
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/08-ga-closeout-control-log.md`
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/11-ga-release-notes-v0.1.0.md`
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/13-ga-rollback-and-hypercare.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/docs/08-ga-closeout-control-log.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/docs/11-ga-release-notes-v0.1.0.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/docs/13-ga-rollback-and-hypercare.md`

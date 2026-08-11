@@ -10,9 +10,9 @@
 
 ## Commands Executed
 All command forms below are sourced from:
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/AGENTS.md`
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/04-post-dk-ops-and-followup-policy.md`
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/CHECKLIST_VERIFICATION.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/AGENTS.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/docs/04-post-dk-ops-and-followup-policy.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/CHECKLIST_VERIFICATION.md`
 
 ### Desktop gate rerun (C2 required)
 - Command: `pnpm lint && pnpm test && pnpm tauri build`
@@ -21,29 +21,29 @@ All command forms below are sourced from:
 - Result: `PASS`
 
 ### Recovery fix applied
-- File updated: `/Users/d/Projects/knowledgecore/apps/desktop/src-tauri/tauri.conf.json`
+- File updated: `~/Projects/knowledgecore/apps/desktop/src-tauri/tauri.conf.json`
 - Change: set `"bundle.active": true` so canonical `pnpm tauri build` emits distributable bundles.
 
 ### Artifact generation
 - Command: `pnpm tauri build` (after recovery fix)
 - Result: `PASS`
 - Bundles produced:
-  - `/Users/d/Projects/knowledgecore/target/release/bundle/macos/KnowledgeCore Desktop.app`
-  - `/Users/d/Projects/knowledgecore/target/release/bundle/dmg/KnowledgeCore Desktop_0.1.0_aarch64.dmg`
+  - `~/Projects/knowledgecore/target/release/bundle/macos/KnowledgeCore Desktop.app`
+  - `~/Projects/knowledgecore/target/release/bundle/dmg/KnowledgeCore Desktop_0.1.0_aarch64.dmg`
 
 ## Artifact Inventory
-1. `/Users/d/Projects/knowledgecore/target/release/apps_desktop_tauri`
+1. `~/Projects/knowledgecore/target/release/apps_desktop_tauri`
 - Type: release executable (arm64)
 - Size bytes: `37054112`
 - SHA-256: `20d7db3f48a7780d87bd7c5b5b02b067314408db023551597810d54b5c6a63b4`
 
-2. `/Users/d/Projects/knowledgecore/target/release/bundle/macos/KnowledgeCore Desktop.app`
+2. `~/Projects/knowledgecore/target/release/bundle/macos/KnowledgeCore Desktop.app`
 - Type: macOS application bundle
-- Main executable path: `/Users/d/Projects/knowledgecore/target/release/bundle/macos/KnowledgeCore Desktop.app/Contents/MacOS/apps_desktop_tauri`
+- Main executable path: `~/Projects/knowledgecore/target/release/bundle/macos/KnowledgeCore Desktop.app/Contents/MacOS/apps_desktop_tauri`
 - Main executable size bytes: `37054112`
 - Main executable SHA-256: `20d7db3f48a7780d87bd7c5b5b02b067314408db023551597810d54b5c6a63b4`
 
-3. `/Users/d/Projects/knowledgecore/target/release/bundle/dmg/KnowledgeCore Desktop_0.1.0_aarch64.dmg`
+3. `~/Projects/knowledgecore/target/release/bundle/dmg/KnowledgeCore Desktop_0.1.0_aarch64.dmg`
 - Type: macOS disk image
 - Size bytes: `14363929`
 - SHA-256: `1c38d16d8317db82f620510e5d016386e3376d28e56688e6ba279377c9b28067`
@@ -55,19 +55,19 @@ All command forms below are sourced from:
 - Result: `0 valid identities found`
 
 ### App signature state
-- Command: `codesign -dv --verbose=4 /Users/d/Projects/knowledgecore/target/release/bundle/macos/KnowledgeCore Desktop.app`
+- Command: `codesign -dv --verbose=4 ~/Projects/knowledgecore/target/release/bundle/macos/KnowledgeCore Desktop.app`
 - Result summary:
   - `Signature=adhoc`
   - `TeamIdentifier=not set`
 
 ### Signature verification check
-- Command: `codesign --verify --deep --strict --verbose=2 /Users/d/Projects/knowledgecore/target/release/bundle/macos/KnowledgeCore Desktop.app`
+- Command: `codesign --verify --deep --strict --verbose=2 ~/Projects/knowledgecore/target/release/bundle/macos/KnowledgeCore Desktop.app`
 - Result: `FAIL`
 - Error:
   - `code has no resources but signature indicates they must be present`
 
 ### Gatekeeper assess check
-- Command: `spctl --assess --type execute --verbose=4 /Users/d/Projects/knowledgecore/target/release/bundle/macos/KnowledgeCore Desktop.app`
+- Command: `spctl --assess --type execute --verbose=4 ~/Projects/knowledgecore/target/release/bundle/macos/KnowledgeCore Desktop.app`
 - Result: `FAIL`
 
 ### Notary profile readiness check
@@ -77,20 +77,20 @@ All command forms below are sourced from:
   - `No Keychain password item found for profile: knowledgecore-ga`
 
 ### Stapler verification check
-- Command: `xcrun stapler validate /Users/d/Projects/knowledgecore/target/release/bundle/macos/KnowledgeCore Desktop.app`
+- Command: `xcrun stapler validate ~/Projects/knowledgecore/target/release/bundle/macos/KnowledgeCore Desktop.app`
 - Result: `FAIL`
 - Message:
   - `does not have a ticket stapled to it`
 
 ## Distribution Verification Instructions
 1. Verify checksums before publication:
-- `shasum -a 256 /Users/d/Projects/knowledgecore/target/release/bundle/dmg/KnowledgeCore\ Desktop_0.1.0_aarch64.dmg`
+- `shasum -a 256 ~/Projects/knowledgecore/target/release/bundle/dmg/KnowledgeCore\ Desktop_0.1.0_aarch64.dmg`
 
 2. Verify signature status:
-- `codesign --verify --deep --strict --verbose=2 /Users/d/Projects/knowledgecore/target/release/bundle/macos/KnowledgeCore\ Desktop.app`
+- `codesign --verify --deep --strict --verbose=2 ~/Projects/knowledgecore/target/release/bundle/macos/KnowledgeCore\ Desktop.app`
 
 3. Verify notarization ticket:
-- `xcrun stapler validate /Users/d/Projects/knowledgecore/target/release/bundle/macos/KnowledgeCore\ Desktop.app`
+- `xcrun stapler validate ~/Projects/knowledgecore/target/release/bundle/macos/KnowledgeCore\ Desktop.app`
 
 ## C2 Stop/Go Decision
 - Decision: `STOP (NO-GO)`

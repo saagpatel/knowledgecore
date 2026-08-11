@@ -7,19 +7,19 @@
   - Pilot track: `GO (internal only)`
 
 ## Command Source of Truth
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/AGENTS.md`
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/04-post-dk-ops-and-followup-policy.md`
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/CHECKLIST_VERIFICATION.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/AGENTS.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/docs/04-post-dk-ops-and-followup-policy.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/CHECKLIST_VERIFICATION.md`
 
 ## Gate Checklist
 | Gate | Required for GA | Required for Pilot | Status | Evidence |
 |---|---|---|---|---|
-| Rust gate (`cargo test -p kc_core -p kc_extract -p kc_index -p kc_ask -p kc_cli`) | Yes | Yes | PASS | `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/09-ga-validation-evidence.md` |
-| Schema/RPC gates | Yes | Yes | PASS | `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/09-ga-validation-evidence.md` |
-| Desktop gate (`pnpm lint && pnpm test && pnpm tauri build`) | Yes | Yes | PASS | `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/09-ga-validation-evidence.md`, `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/10-ga-artifact-manifest-v0.1.0.md` |
-| Bench run x2 stable checksum | Yes | Yes | PASS | `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/09-ga-validation-evidence.md` |
-| Signed artifacts | Yes | No | FAIL (blocking GA) | `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/10-ga-artifact-manifest-v0.1.0.md` |
-| Notarized + stapled artifacts | Yes | No | FAIL (blocking GA) | `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/10-ga-artifact-manifest-v0.1.0.md` |
+| Rust gate (`cargo test -p kc_core -p kc_extract -p kc_index -p kc_ask -p kc_cli`) | Yes | Yes | PASS | `~/Projects/knowledgecore/knowledgecore-docpack/docs/09-ga-validation-evidence.md` |
+| Schema/RPC gates | Yes | Yes | PASS | `~/Projects/knowledgecore/knowledgecore-docpack/docs/09-ga-validation-evidence.md` |
+| Desktop gate (`pnpm lint && pnpm test && pnpm tauri build`) | Yes | Yes | PASS | `~/Projects/knowledgecore/knowledgecore-docpack/docs/09-ga-validation-evidence.md`, `~/Projects/knowledgecore/knowledgecore-docpack/docs/10-ga-artifact-manifest-v0.1.0.md` |
+| Bench run x2 stable checksum | Yes | Yes | PASS | `~/Projects/knowledgecore/knowledgecore-docpack/docs/09-ga-validation-evidence.md` |
+| Signed artifacts | Yes | No | FAIL (blocking GA) | `~/Projects/knowledgecore/knowledgecore-docpack/docs/10-ga-artifact-manifest-v0.1.0.md` |
+| Notarized + stapled artifacts | Yes | No | FAIL (blocking GA) | `~/Projects/knowledgecore/knowledgecore-docpack/docs/10-ga-artifact-manifest-v0.1.0.md` |
 
 ## Stop Conditions (GA)
 - Missing Developer ID signing identity.
@@ -48,7 +48,7 @@
 - GA release decision: `NO-GO`
 - Pilot release decision: `GO (internal only)`
 - Formal decision record location:
-  - `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/14-ga-decision-record.md`
+  - `~/Projects/knowledgecore/knowledgecore-docpack/docs/14-ga-decision-record.md`
 
 ## C4 Final Gate Rerun Evidence
 | Command | Start (UTC) | End (UTC) | Result | Notes |

@@ -1,99 +1,124 @@
 {
   "metadata": {
     "owner": "engineering",
-    "updated_on": "2026-07-03",
+    "updated_on": "2026-08-11",
     "max_review_window_days": 45
   },
   "allow": [
     {
       "id": "RUSTSEC-2024-0413",
-      "review_by": "2026-07-19",
+      "review_by": "2026-09-25",
       "reason": "gtk3 stack is transitively pulled by tauri runtime chain."
     },
     {
       "id": "RUSTSEC-2024-0416",
-      "review_by": "2026-07-19",
+      "review_by": "2026-09-25",
       "reason": "gtk3 stack is transitively pulled by tauri runtime chain."
     },
     {
       "id": "RUSTSEC-2024-0412",
-      "review_by": "2026-07-19",
+      "review_by": "2026-09-25",
       "reason": "gtk3 stack is transitively pulled by tauri runtime chain."
     },
     {
       "id": "RUSTSEC-2024-0418",
-      "review_by": "2026-07-19",
+      "review_by": "2026-09-25",
       "reason": "gtk3 stack is transitively pulled by tauri runtime chain."
     },
     {
       "id": "RUSTSEC-2024-0411",
-      "review_by": "2026-07-19",
+      "review_by": "2026-09-25",
       "reason": "gtk3 stack is transitively pulled by tauri runtime chain."
     },
     {
       "id": "RUSTSEC-2024-0415",
-      "review_by": "2026-07-19",
+      "review_by": "2026-09-25",
       "reason": "gtk3 stack is transitively pulled by tauri runtime chain."
     },
     {
       "id": "RUSTSEC-2024-0420",
-      "review_by": "2026-07-19",
+      "review_by": "2026-09-25",
       "reason": "gtk3 stack is transitively pulled by tauri runtime chain."
     },
     {
       "id": "RUSTSEC-2024-0419",
-      "review_by": "2026-07-19",
+      "review_by": "2026-09-25",
       "reason": "gtk3 stack is transitively pulled by tauri runtime chain."
     },
     {
       "id": "RUSTSEC-2024-0436",
-      "review_by": "2026-07-19",
+      "review_by": "2026-09-25",
       "reason": "transitive macro dependency; replace during toolchain refresh."
     },
     {
       "id": "RUSTSEC-2024-0370",
-      "review_by": "2026-07-19",
+      "review_by": "2026-09-25",
       "reason": "transitive macro dependency; replace during toolchain refresh."
     },
     {
       "id": "RUSTSEC-2025-0081",
-      "review_by": "2026-07-19",
+      "review_by": "2026-09-25",
       "reason": "transitive unicode crate via tauri/urlpattern chain."
     },
     {
       "id": "RUSTSEC-2025-0075",
-      "review_by": "2026-07-19",
+      "review_by": "2026-09-25",
       "reason": "transitive unicode crate via tauri/urlpattern chain."
     },
     {
       "id": "RUSTSEC-2025-0080",
-      "review_by": "2026-07-19",
+      "review_by": "2026-09-25",
       "reason": "transitive unicode crate via tauri/urlpattern chain."
     },
     {
       "id": "RUSTSEC-2025-0100",
-      "review_by": "2026-07-19",
+      "review_by": "2026-09-25",
       "reason": "transitive unicode crate via tauri/urlpattern chain."
     },
     {
       "id": "RUSTSEC-2025-0098",
-      "review_by": "2026-07-19",
+      "review_by": "2026-09-25",
       "reason": "transitive unicode crate via tauri/urlpattern chain."
     },
     {
       "id": "RUSTSEC-2024-0429",
-      "review_by": "2026-07-19",
+      "review_by": "2026-09-25",
       "reason": "unsound glib in gtk3 transitives; prioritize tauri/linux backend migration."
     },
     {
       "id": "RUSTSEC-2026-0194",
-      "review_by": "2026-08-17",
-      "reason": "quick-xml is pulled transitively by tauri via plist; plist 1.9.0 still caps quick-xml below the patched 0.41 line."
+      "review_by": "2026-09-25",
+      "reason": "quick-xml is pulled transitively by tauri via plist; plist 1.9.0 still caps quick-xml below the patched 0.41 line. Re-check plist at each review; it may unblock before this date."
     },
     {
       "id": "RUSTSEC-2026-0195",
-      "review_by": "2026-08-17",
-      "reason": "quick-xml is pulled transitively by tauri via plist; plist 1.9.0 still caps quick-xml below the patched 0.41 line."
+      "review_by": "2026-09-25",
+      "reason": "quick-xml is pulled transitively by tauri via plist; plist 1.9.0 still caps quick-xml below the patched 0.41 line. Re-check plist at each review; it may unblock before this date."
+    },
+    {
+      "id": "RUSTSEC-2026-0233",
+      "review_by": "2026-09-25",
+      "reason": "rkyv 0.8.16 arrives transitively via lancedb -> lance-tokenizer -> lindera -> lindera-dictionary; no patched release exists. Exploitation requires deserializing a crafted rkyv archive, and the only archives on this path are lindera's own bundled dictionaries. No crate in this workspace depends on rkyv directly or references lindera."
+    },
+    {
+      "id": "RUSTSEC-2026-0234",
+      "review_by": "2026-09-25",
+      "reason": "rkyv 0.8.16 arrives transitively via lancedb -> lance-tokenizer -> lindera -> lindera-dictionary; no patched release exists. Exploitation requires deserializing a crafted rkyv archive, and the only archives on this path are lindera's own bundled dictionaries. No crate in this workspace depends on rkyv directly or references lindera."
+    },
+    {
+      "id": "RUSTSEC-2026-0235",
+      "review_by": "2026-09-25",
+      "reason": "rkyv 0.8.16 arrives transitively via lancedb -> lance-tokenizer -> lindera -> lindera-dictionary; no patched release exists. Exploitation requires deserializing a crafted rkyv archive, and the only archives on this path are lindera's own bundled dictionaries. No crate in this workspace depends on rkyv directly or references lindera."
+    },
+    {
+      "id": "RUSTSEC-2026-0221",
+      "review_by": "2026-09-25",
+      "reason": "event-listener 5.4.1 arrives transitively via lancedb's moka cache through async-lock; no patched release exists. The unsoundness requires moving a !Send tag across a thread boundary, which no crate in this workspace does."
+    },
+    {
+      "id": "RUSTSEC-2026-0253",
+      "review_by": "2026-09-25",
+      "reason": "lru 0.16.4 arrives transitively via aws-sdk-s3 internal caching; no patched release exists. The use-after-free requires a panic inside LruCache::pop, which is internal to the SDK and not reachable from this workspace."
     }
   ]
 }

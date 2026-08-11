@@ -19,8 +19,8 @@ Establish immutable closeout controls for KnowledgeCore GA launch readiness and 
 
 ## Safety Artifacts
 - Safety tag: `safety/pre-closeout-20260215T070454Z`
-- Git bundle backup: `/Users/d/Projects/knowledgecore/.git-backups/pre-closeout-20260215T070454Z.bundle`
-- Branch inventory log: `/Users/d/Projects/knowledgecore/.git-backups/pre-closeout-20260215T070454Z.log`
+- Git bundle backup: `~/Projects/knowledgecore/.git-backups/pre-closeout-20260215T070454Z.bundle`
+- Branch inventory log: `~/Projects/knowledgecore/.git-backups/pre-closeout-20260215T070454Z.log`
 
 ## Required Signoffs
 - Engineering owner: validates full technical gates and determinism contracts
@@ -50,9 +50,9 @@ Establish immutable closeout controls for KnowledgeCore GA launch readiness and 
 - Record all deltas in closeout evidence docs prior to merge
 
 ## Verification Command Sources
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/AGENTS.md`
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/04-post-dk-ops-and-followup-policy.md`
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/CHECKLIST_VERIFICATION.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/AGENTS.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/docs/04-post-dk-ops-and-followup-policy.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/CHECKLIST_VERIFICATION.md`
 
 ## Control Amendment (Pilot Pivot)
 - Amendment captured at (UTC): `2026-02-15T07:18:34Z`
@@ -64,6 +64,6 @@ Establish immutable closeout controls for KnowledgeCore GA launch readiness and 
   - Internal pilot release is permitted with explicit risk disclosure and controlled audience.
   - GA path remains gated on signed + notarized + stapled artifact evidence.
 - Amendment evidence references:
-  - `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/10-ga-artifact-manifest-v0.1.0.md`
-  - `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/12-ga-go-no-go-checklist.md`
-  - `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/14-ga-decision-record.md`
+  - `~/Projects/knowledgecore/knowledgecore-docpack/docs/10-ga-artifact-manifest-v0.1.0.md`
+  - `~/Projects/knowledgecore/knowledgecore-docpack/docs/12-ga-go-no-go-checklist.md`
+  - `~/Projects/knowledgecore/knowledgecore-docpack/docs/14-ga-decision-record.md`

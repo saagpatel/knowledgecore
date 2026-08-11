@@ -19,7 +19,7 @@ Operational response plan for `v0.1.0-pilot.1` while GA remains blocked on Apple
 2. Revoke pilot recommendation in launch channels.
 3. Direct users to previous known-good internal build snapshot.
 4. Open incident and capture timeline in:
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/16-ga-hypercare-log.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/docs/16-ga-hypercare-log.md`
 5. Run targeted verification command set before any re-issue:
 - `cargo test -p kc_core -p kc_extract -p kc_index -p kc_ask -p kc_cli`
 - `pnpm lint && pnpm test && pnpm tauri build`
@@ -43,4 +43,4 @@ Operational response plan for `v0.1.0-pilot.1` while GA remains blocked on Apple
 - Incident logs complete and linked.
 - Remaining risks assigned with explicit owners and due dates.
 - Closure summary published in:
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/17-project-closeout-report.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/docs/17-project-closeout-report.md`

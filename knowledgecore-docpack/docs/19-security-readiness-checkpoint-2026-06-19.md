@@ -4,7 +4,7 @@
 Capture the current security/readiness state after the June 2026 audit, first desktop boundary-hardening slice, and dependency gate refresh.
 
 ## Verified Current State
-- Canonical repo path: `/Users/d/Projects/knowledgecore`.
+- Canonical repo path: `~/Projects/knowledgecore`.
 - Canonical branch: `main`.
 - Working tree was clean before the hardening slice.
 - KnowledgeCore remains local-first by default.

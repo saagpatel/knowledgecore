@@ -18,15 +18,15 @@ KnowledgeCore launch closeout completed with a controlled pilot release (`v0.1.0
 - C6: hypercare logging and project closure packaging.
 
 ## Key Evidence Index
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/08-ga-closeout-control-log.md`
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/09-ga-validation-evidence.md`
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/10-ga-artifact-manifest-v0.1.0.md`
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/11-ga-release-notes-v0.1.0.md`
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/12-ga-go-no-go-checklist.md`
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/13-ga-rollback-and-hypercare.md`
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/14-ga-decision-record.md`
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/15-ga-publication-record.md`
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/16-ga-hypercare-log.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/docs/08-ga-closeout-control-log.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/docs/09-ga-validation-evidence.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/docs/10-ga-artifact-manifest-v0.1.0.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/docs/11-ga-release-notes-v0.1.0.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/docs/12-ga-go-no-go-checklist.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/docs/13-ga-rollback-and-hypercare.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/docs/14-ga-decision-record.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/docs/15-ga-publication-record.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/docs/16-ga-hypercare-log.md`
 
 ## Residual Risks and Ownership
 1. GA trust-compliance gap (signing/notarization unavailable)
@@ -57,14 +57,14 @@ KnowledgeCore launch closeout completed with a controlled pilot release (`v0.1.0
 - Open PR queue: empty.
 - GitHub `main` CI and Security Audit passed for `3f23f3b`.
 - Historical remote `master` was archived to `origin/archive/master-before-main-canonical-2026-04-26` at `915c506`; `origin/master` is no longer active.
-- Current dependency/security verification details are captured in `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/18-post-stabilization-baseline-2026-04-26.md`.
+- Current dependency/security verification details are captured in `~/Projects/knowledgecore/knowledgecore-docpack/docs/18-post-stabilization-baseline-2026-04-26.md`.
 - GA trust-compliance gap remains open and credential-dependent.
 
 ## Final Consolidation Evidence (Post-C6)
 Command source references:
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/AGENTS.md`
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/docs/04-post-dk-ops-and-followup-policy.md`
-- `/Users/d/Projects/knowledgecore/knowledgecore-docpack/CHECKLIST_VERIFICATION.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/AGENTS.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/docs/04-post-dk-ops-and-followup-policy.md`
+- `~/Projects/knowledgecore/knowledgecore-docpack/CHECKLIST_VERIFICATION.md`
 
 Gate reruns on `master`:
 | Command | Start (UTC) | End (UTC) | Result |

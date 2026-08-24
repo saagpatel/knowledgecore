@@ -1,5 +1,5 @@
 use crate::app_error::{AppError, AppResult};
-use rusqlite::Connection;
+use rusqlite::{Connection, OpenFlags};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
@@ -517,6 +517,84 @@ pub fn open_db(db_path: &Path) -> AppResult<Connection> {
         })?;
 
     apply_migrations(&conn)?;
+    Ok(conn)
+}
+
+/// Open a current KnowledgeCore vault database without creating directories,
+/// applying migrations, or permitting writes. Read-only consumers must use
+/// this path so a query cannot silently mutate an older or missing vault.
+pub fn open_db_readonly(db_path: &Path) -> AppResult<Connection> {
+    if !db_path.is_file() {
+        return Err(AppError::new(
+            "KC_DB_OPEN_FAILED",
+            "db",
+            "vault database is unavailable for read-only access",
+            false,
+            serde_json::json!({}),
+        ));
+    }
+
+    match fs::File::open(db_path) {
+        Ok(file) => drop(file),
+        Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+            return Err(AppError::new(
+                "KC_DB_PERMISSION_DENIED",
+                "db",
+                "vault database access is denied",
+                false,
+                serde_json::json!({}),
+            ));
+        }
+        Err(_) => {
+            return Err(AppError::new(
+                "KC_DB_OPEN_FAILED",
+                "db",
+                "vault database is unavailable for read-only access",
+                false,
+                serde_json::json!({}),
+            ));
+        }
+    }
+
+    let conn = Connection::open_with_flags(
+        db_path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(|_| {
+        AppError::new(
+            "KC_DB_OPEN_FAILED",
+            "db",
+            "failed to open vault database read-only",
+            false,
+            serde_json::json!({}),
+        )
+    })?;
+
+    apply_db_encryption_key_if_needed(&conn, db_path)?;
+    conn.pragma_update(None, "query_only", "ON").map_err(|_| {
+        AppError::new(
+            "KC_DB_OPEN_FAILED",
+            "db",
+            "failed to enforce read-only query mode",
+            false,
+            serde_json::json!({}),
+        )
+    })?;
+
+    let current = schema_version(&conn)?;
+    if current != LATEST_SCHEMA_VERSION {
+        return Err(AppError::new(
+            "KC_DB_SCHEMA_INCOMPATIBLE",
+            "db",
+            "vault schema must be current before read-only federation access",
+            false,
+            serde_json::json!({
+                "expected": LATEST_SCHEMA_VERSION,
+                "actual": current
+            }),
+        ));
+    }
+
     Ok(conn)
 }
 

@@ -248,6 +248,11 @@ pub fn search_query(req: rpc::SearchQueryReq) -> rpc::RpcResponse<rpc::SearchQue
 }
 
 #[tauri::command]
+pub fn federation_query(req: rpc::FederationQueryReq) -> rpc::RpcResponse<rpc::FederationQueryRes> {
+    rpc::federation_query_rpc(req)
+}
+
+#[tauri::command]
 pub fn locator_resolve(req: rpc::LocatorResolveReq) -> rpc::RpcResponse<rpc::LocatorResolveRes> {
     rpc::locator_resolve_rpc(req)
 }

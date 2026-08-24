@@ -1,6 +1,7 @@
 use kc_ask::{AskRequest, AskService, RetrievedOnlyAskService};
 use kc_cli::verifier::verify_bundle;
 use kc_core::app_error::AppError;
+use kc_core::federation::{FederationQueryRequestV1, FederationQueryResultV1};
 use kc_core::locator::LocatorV1;
 use kc_core::rpc_service;
 use serde::de::Error as DeError;
@@ -672,6 +673,19 @@ pub struct SearchHit {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SearchQueryRes {
     pub hits: Vec<SearchHit>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FederationQueryReq {
+    pub vault_path: String,
+    pub request: FederationQueryRequestV1,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FederationQueryRes {
+    pub result: FederationQueryResultV1,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1834,6 +1848,16 @@ pub fn search_query_rpc(req: SearchQueryReq) -> RpcResponse<SearchQueryRes> {
                 })
                 .collect(),
         }),
+        Err(error) => RpcResponse::err(error),
+    }
+}
+
+pub fn federation_query_rpc(req: FederationQueryReq) -> RpcResponse<FederationQueryRes> {
+    match kc_core::federation::federation_query_service(
+        std::path::Path::new(&req.vault_path),
+        &req.request,
+    ) {
+        Ok(result) => RpcResponse::ok(FederationQueryRes { result }),
         Err(error) => RpcResponse::err(error),
     }
 }

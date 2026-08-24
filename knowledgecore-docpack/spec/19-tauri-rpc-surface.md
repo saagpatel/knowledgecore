@@ -84,6 +84,7 @@ Versioned RPC surface v1, envelope schema, and determinism notes.
          - vault_encryption_status, vault_encryption_enable, vault_encryption_migrate
          - ingest_scan_folder, ingest_inbox_start/stop
          - search_query (includes now_ms param for deterministic tests)
+         - federation_query (strict V1 request/result; local-owner read only; source content remains data only)
          - locator_resolve
          - export_bundle, verify_bundle
          - ask_question

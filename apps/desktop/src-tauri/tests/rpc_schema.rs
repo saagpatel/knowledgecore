@@ -1,19 +1,20 @@
 use apps_desktop_tauri::rpc::{
-    AskQuestionReq, LineageLockAcquireReq, LineageLockAcquireScopeReq, LineageLockReleaseReq,
-    LineageLockStatusReq, LineageOverlayAddReq, LineageOverlayListReq, LineageOverlayRemoveReq,
-    LineagePolicyAddReq, LineagePolicyBindReq, LineagePolicyListReq, LineageQueryReq,
-    LineageQueryV2Req, LineageRoleGrantReq, LineageRoleListReq, LineageRoleRevokeReq,
-    SearchQueryReq, SyncAuthReadinessReq, SyncMergePreviewReq, SyncPullReq, SyncPushReq,
-    SyncStatusReq, TrustDeviceEnrollReq, TrustDeviceEnrollSigningKeyReq, TrustDeviceListReq,
-    TrustDeviceSigningKeyDeleteReq, TrustDeviceSigningKeyRotateReq, TrustDeviceSigningKeyStatusReq,
-    TrustDeviceVerifyChainReq, TrustIdentityCompleteReq, TrustIdentityStartReq, TrustPolicySetReq,
-    TrustPolicySetTenantTemplateReq, TrustProviderAddReq, TrustProviderDisableReq,
-    TrustProviderDiscoverReq, TrustProviderListReq, VaultEncryptionEnableReq,
-    VaultEncryptionMigrateReq, VaultEncryptionStatusReq, VaultInitReq, VaultLockReq,
-    VaultLockStatusReq, VaultRecoveryEscrowEnableReq, VaultRecoveryEscrowProviderAddReq,
-    VaultRecoveryEscrowProviderListReq, VaultRecoveryEscrowRestoreReq,
-    VaultRecoveryEscrowRotateAllReq, VaultRecoveryEscrowRotateReq, VaultRecoveryEscrowStatusReq,
-    VaultRecoveryGenerateReq, VaultRecoveryStatusReq, VaultRecoveryVerifyReq, VaultUnlockReq,
+    AskQuestionReq, FederationQueryReq, LineageLockAcquireReq, LineageLockAcquireScopeReq,
+    LineageLockReleaseReq, LineageLockStatusReq, LineageOverlayAddReq, LineageOverlayListReq,
+    LineageOverlayRemoveReq, LineagePolicyAddReq, LineagePolicyBindReq, LineagePolicyListReq,
+    LineageQueryReq, LineageQueryV2Req, LineageRoleGrantReq, LineageRoleListReq,
+    LineageRoleRevokeReq, SearchQueryReq, SyncAuthReadinessReq, SyncMergePreviewReq, SyncPullReq,
+    SyncPushReq, SyncStatusReq, TrustDeviceEnrollReq, TrustDeviceEnrollSigningKeyReq,
+    TrustDeviceListReq, TrustDeviceSigningKeyDeleteReq, TrustDeviceSigningKeyRotateReq,
+    TrustDeviceSigningKeyStatusReq, TrustDeviceVerifyChainReq, TrustIdentityCompleteReq,
+    TrustIdentityStartReq, TrustPolicySetReq, TrustPolicySetTenantTemplateReq, TrustProviderAddReq,
+    TrustProviderDisableReq, TrustProviderDiscoverReq, TrustProviderListReq,
+    VaultEncryptionEnableReq, VaultEncryptionMigrateReq, VaultEncryptionStatusReq, VaultInitReq,
+    VaultLockReq, VaultLockStatusReq, VaultRecoveryEscrowEnableReq,
+    VaultRecoveryEscrowProviderAddReq, VaultRecoveryEscrowProviderListReq,
+    VaultRecoveryEscrowRestoreReq, VaultRecoveryEscrowRotateAllReq, VaultRecoveryEscrowRotateReq,
+    VaultRecoveryEscrowStatusReq, VaultRecoveryGenerateReq, VaultRecoveryStatusReq,
+    VaultRecoveryVerifyReq, VaultUnlockReq,
 };
 
 #[test]
@@ -45,6 +46,19 @@ fn rpc_schema_rejects_unknown_fields() {
         "extra": "nope"
     });
     assert!(serde_json::from_value::<SearchQueryReq>(req).is_err());
+
+    let invalid_federation = serde_json::json!({
+        "vault_path": "/tmp/vault",
+        "request": {
+            "schema_version": "knowledgecore_federation_query_request.v1",
+            "project_key": "saagpatel/knowledgecore",
+            "include_content": false,
+            "limit": 10,
+            "observed_at_ms": 123
+        },
+        "extra": "nope"
+    });
+    assert!(serde_json::from_value::<FederationQueryReq>(invalid_federation).is_err());
 
     let invalid_status = serde_json::json!({
         "vault_path": "/tmp/vault",

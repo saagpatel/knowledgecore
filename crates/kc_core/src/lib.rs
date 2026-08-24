@@ -5,6 +5,7 @@ pub mod chunking;
 pub mod db;
 pub mod events;
 pub mod export;
+pub mod federation;
 pub mod hashing;
 pub mod index_traits;
 pub mod ingest;

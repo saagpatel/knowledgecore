@@ -1,11 +1,15 @@
+use kc_core::canonical::persist_canonical_text;
 use kc_core::db::open_db;
 use kc_core::federation::{
     federation_query_service, FederationQueryRequestV1, FederationSourceStateV1,
     FEDERATION_QUERY_REQUEST_SCHEMA, FEDERATION_QUERY_RESULT_SCHEMA,
 };
+use kc_core::hashing::blake3_hex_prefixed;
 use kc_core::ingest::{ingest_bytes, IngestBytesReq};
 use kc_core::object_store::ObjectStore;
 use kc_core::rpc_service::{vault_encryption_enable_service, vault_encryption_migrate_service};
+use kc_core::services::CanonicalTextArtifact;
+use kc_core::types::{CanonicalHash, ObjectHash};
 use kc_core::vault::{vault_init, vault_paths};
 
 fn request(project_key: &str, include_content: bool) -> FederationQueryRequestV1 {
@@ -25,7 +29,7 @@ fn fixture_vault(text: &[u8]) -> (tempfile::TempDir, std::path::PathBuf) {
     let paths = vault_paths(&vault_path);
     let conn = open_db(&paths.db).expect("open db");
     let store = ObjectStore::new(paths.objects_dir);
-    ingest_bytes(
+    let ingested = ingest_bytes(
         &conn,
         &store,
         IngestBytesReq {
@@ -38,6 +42,24 @@ fn fixture_vault(text: &[u8]) -> (tempfile::TempDir, std::path::PathBuf) {
         },
     )
     .expect("ingest fixture");
+    let canonical_hash = blake3_hex_prefixed(text);
+    persist_canonical_text(
+        &conn,
+        &store,
+        &CanonicalTextArtifact {
+            doc_id: ingested.doc_id,
+            canonical_bytes: text.to_vec(),
+            canonical_hash: CanonicalHash(canonical_hash.clone()),
+            canonical_object_hash: ObjectHash(canonical_hash),
+            extractor_name: "federation-test".to_string(),
+            extractor_version: "1".to_string(),
+            extractor_flags_json: "{}".to_string(),
+            normalization_version: 1,
+            toolchain_json: "{}".to_string(),
+        },
+        1,
+    )
+    .expect("persist canonical fixture");
     (temp, vault_path)
 }
 

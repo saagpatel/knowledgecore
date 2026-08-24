@@ -85,6 +85,8 @@ Versioned RPC surface v1, envelope schema, and determinism notes.
          - ingest_scan_folder, ingest_inbox_start/stop
          - search_query (includes now_ms param for deterministic tests)
          - federation_query (strict V1 request/result; local-owner read only; source content remains data only)
+         - federation_query_v2 (strict lifecycle-aware V2 request/result; local-owner read only; suppressed matches expose no content)
+         - document_lifecycle_mutate (strict owner request; deny-by-default `document.lifecycle.write`; appends an existing-chain owner event only)
          - locator_resolve
          - export_bundle, verify_bundle
          - ask_question

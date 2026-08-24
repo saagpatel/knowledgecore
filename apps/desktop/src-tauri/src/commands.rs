@@ -253,6 +253,20 @@ pub fn federation_query(req: rpc::FederationQueryReq) -> rpc::RpcResponse<rpc::F
 }
 
 #[tauri::command]
+pub fn federation_query_v2(
+    req: rpc::FederationQueryV2Req,
+) -> rpc::RpcResponse<rpc::FederationQueryV2Res> {
+    rpc::federation_query_v2_rpc(req)
+}
+
+#[tauri::command]
+pub fn document_lifecycle_mutate(
+    req: rpc::DocumentLifecycleMutateReq,
+) -> rpc::RpcResponse<rpc::DocumentLifecycleMutateRes> {
+    rpc::document_lifecycle_mutate_rpc(req)
+}
+
+#[tauri::command]
 pub fn locator_resolve(req: rpc::LocatorResolveReq) -> rpc::RpcResponse<rpc::LocatorResolveRes> {
     rpc::locator_resolve_rpc(req)
 }

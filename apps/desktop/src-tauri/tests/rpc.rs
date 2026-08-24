@@ -1,13 +1,13 @@
 use apps_desktop_tauri::commands;
 use apps_desktop_tauri::rpc::{
-    federation_query_rpc, ingest_inbox_start_rpc, ingest_inbox_stop_rpc, jobs_list_rpc,
-    lineage_lock_acquire_rpc, lineage_lock_acquire_scope_rpc, lineage_lock_release_rpc,
-    lineage_lock_status_rpc, lineage_overlay_add_rpc, lineage_overlay_list_rpc,
-    lineage_overlay_remove_rpc, lineage_policy_add_rpc, lineage_policy_bind_rpc,
-    lineage_policy_list_rpc, lineage_query_rpc, lineage_query_v2_rpc, lineage_role_grant_rpc,
-    lineage_role_list_rpc, lineage_role_revoke_rpc, sync_auth_readiness_rpc,
-    sync_merge_preview_rpc, sync_pull_rpc, sync_push_rpc, sync_status_rpc, trust_device_enroll_rpc,
-    trust_device_enroll_signing_key_rpc, trust_device_list_rpc,
+    document_lifecycle_mutate_rpc, federation_query_rpc, federation_query_v2_rpc,
+    ingest_inbox_start_rpc, ingest_inbox_stop_rpc, jobs_list_rpc, lineage_lock_acquire_rpc,
+    lineage_lock_acquire_scope_rpc, lineage_lock_release_rpc, lineage_lock_status_rpc,
+    lineage_overlay_add_rpc, lineage_overlay_list_rpc, lineage_overlay_remove_rpc,
+    lineage_policy_add_rpc, lineage_policy_bind_rpc, lineage_policy_list_rpc, lineage_query_rpc,
+    lineage_query_v2_rpc, lineage_role_grant_rpc, lineage_role_list_rpc, lineage_role_revoke_rpc,
+    sync_auth_readiness_rpc, sync_merge_preview_rpc, sync_pull_rpc, sync_push_rpc, sync_status_rpc,
+    trust_device_enroll_rpc, trust_device_enroll_signing_key_rpc, trust_device_list_rpc,
     trust_device_signing_key_delete_rpc, trust_device_signing_key_rotate_rpc,
     trust_device_signing_key_status_rpc, trust_device_verify_chain_rpc,
     trust_identity_complete_rpc, trust_identity_start_rpc, trust_policy_set_tenant_template_rpc,
@@ -17,27 +17,41 @@ use apps_desktop_tauri::rpc::{
     vault_recovery_escrow_provider_list_rpc, vault_recovery_escrow_restore_rpc,
     vault_recovery_escrow_rotate_all_rpc, vault_recovery_escrow_rotate_rpc,
     vault_recovery_escrow_status_rpc, vault_recovery_generate_rpc, vault_recovery_status_rpc,
-    vault_recovery_verify_rpc, vault_unlock_rpc, FederationQueryReq, IngestInboxStartReq,
-    IngestInboxStopReq, JobsListReq, LineageLockAcquireReq, LineageLockAcquireScopeReq,
-    LineageLockReleaseReq, LineageLockStatusReq, LineageOverlayAddReq, LineageOverlayListReq,
-    LineageOverlayRemoveReq, LineagePolicyAddReq, LineagePolicyBindReq, LineagePolicyListReq,
-    LineageQueryReq, LineageQueryV2Req, LineageRoleGrantReq, LineageRoleListReq,
-    LineageRoleRevokeReq, RpcResponse, SyncAuthReadinessReq, SyncMergePreviewReq, SyncPullReq,
-    SyncPushReq, SyncStatusReq, TrustDeviceEnrollReq, TrustDeviceEnrollSigningKeyReq,
-    TrustDeviceListReq, TrustDeviceSigningKeyDeleteReq, TrustDeviceSigningKeyRotateReq,
-    TrustDeviceSigningKeyStatusReq, TrustDeviceVerifyChainReq, TrustIdentityCompleteReq,
-    TrustIdentityStartReq, TrustPolicySetTenantTemplateReq, TrustProviderDiscoverReq,
-    VaultEncryptionEnableReq, VaultEncryptionMigrateReq, VaultEncryptionStatusReq, VaultInitReq,
-    VaultLockReq, VaultLockStatusReq, VaultOpenReq, VaultRecoveryEscrowEnableReq,
+    vault_recovery_verify_rpc, vault_unlock_rpc, DocumentLifecycleMutateReq, FederationQueryReq,
+    FederationQueryV2Req, IngestInboxStartReq, IngestInboxStopReq, JobsListReq,
+    LineageLockAcquireReq, LineageLockAcquireScopeReq, LineageLockReleaseReq, LineageLockStatusReq,
+    LineageOverlayAddReq, LineageOverlayListReq, LineageOverlayRemoveReq, LineagePolicyAddReq,
+    LineagePolicyBindReq, LineagePolicyListReq, LineageQueryReq, LineageQueryV2Req,
+    LineageRoleGrantReq, LineageRoleListReq, LineageRoleRevokeReq, RpcResponse,
+    SyncAuthReadinessReq, SyncMergePreviewReq, SyncPullReq, SyncPushReq, SyncStatusReq,
+    TrustDeviceEnrollReq, TrustDeviceEnrollSigningKeyReq, TrustDeviceListReq,
+    TrustDeviceSigningKeyDeleteReq, TrustDeviceSigningKeyRotateReq, TrustDeviceSigningKeyStatusReq,
+    TrustDeviceVerifyChainReq, TrustIdentityCompleteReq, TrustIdentityStartReq,
+    TrustPolicySetTenantTemplateReq, TrustProviderDiscoverReq, VaultEncryptionEnableReq,
+    VaultEncryptionMigrateReq, VaultEncryptionStatusReq, VaultInitReq, VaultLockReq,
+    VaultLockStatusReq, VaultOpenReq, VaultRecoveryEscrowEnableReq,
     VaultRecoveryEscrowProviderAddReq, VaultRecoveryEscrowProviderListReq,
     VaultRecoveryEscrowRestoreReq, VaultRecoveryEscrowRotateAllReq, VaultRecoveryEscrowRotateReq,
     VaultRecoveryEscrowStatusReq, VaultRecoveryGenerateReq, VaultRecoveryStatusReq,
     VaultRecoveryVerifyReq, VaultUnlockReq,
 };
 use kc_core::app_error::AppError;
-use kc_core::federation::{
-    FederationQueryRequestV1, FederationSourceStateV1, FEDERATION_QUERY_REQUEST_SCHEMA,
+use kc_core::canonical::persist_canonical_text;
+use kc_core::db::open_db;
+use kc_core::document_lifecycle::{
+    DocumentLifecycleActionV1, DocumentLifecycleMutationRequestV1,
+    DOCUMENT_LIFECYCLE_REQUEST_SCHEMA,
 };
+use kc_core::federation::{
+    FederationMatchDispositionV2, FederationQueryRequestV1, FederationQueryRequestV2,
+    FederationSourceStateV1, FEDERATION_QUERY_REQUEST_SCHEMA, FEDERATION_QUERY_REQUEST_SCHEMA_V2,
+};
+use kc_core::hashing::blake3_hex_prefixed;
+use kc_core::ingest::{ingest_bytes, IngestBytesReq};
+use kc_core::object_store::ObjectStore;
+use kc_core::services::CanonicalTextArtifact;
+use kc_core::types::{CanonicalHash, ObjectHash};
+use kc_core::vault::vault_paths;
 use std::sync::{Mutex, OnceLock};
 
 fn env_lock() -> &'static Mutex<()> {
@@ -150,6 +164,172 @@ fn rpc_federation_query_preserves_source_owned_not_found_state() {
             assert!(data.result.facts.is_empty());
         }
         RpcResponse::Err { error } => panic!("federation query failed: {}", error.code),
+    }
+}
+
+#[test]
+fn rpc_federation_v2_and_lifecycle_mutation_preserve_owner_boundaries() {
+    let root = tempfile::tempdir().expect("tempdir").keep();
+    match vault_init_rpc(VaultInitReq {
+        vault_path: root.to_string_lossy().to_string(),
+        vault_slug: "federation-v2".to_string(),
+        now_ms: 1,
+    }) {
+        RpcResponse::Ok { .. } => {}
+        RpcResponse::Err { error } => panic!("vault init failed: {}", error.code),
+    }
+
+    match trust_identity_start_rpc(TrustIdentityStartReq {
+        vault_path: root.to_string_lossy().to_string(),
+        provider: "default".to_string(),
+        now_ms: 2,
+    }) {
+        RpcResponse::Ok { .. } => {}
+        RpcResponse::Err { error } => panic!("trust identity start failed: {}", error.code),
+    }
+    let owner_session_id = match trust_identity_complete_rpc(TrustIdentityCompleteReq {
+        vault_path: root.to_string_lossy().to_string(),
+        provider: "default".to_string(),
+        auth_code: "sub:owner-rpc-subject".to_string(),
+        now_ms: 3,
+    }) {
+        RpcResponse::Ok { data } => data.session_id,
+        RpcResponse::Err { error } => panic!("owner identity completion failed: {}", error.code),
+    };
+    let unbound_session_id = match trust_identity_complete_rpc(TrustIdentityCompleteReq {
+        vault_path: root.to_string_lossy().to_string(),
+        provider: "default".to_string(),
+        auth_code: "sub:unbound-rpc-subject".to_string(),
+        now_ms: 4,
+    }) {
+        RpcResponse::Ok { data } => data.session_id,
+        RpcResponse::Err { error } => {
+            panic!("unbound identity completion failed: {}", error.code)
+        }
+    };
+
+    let query = federation_query_v2_rpc(FederationQueryV2Req {
+        vault_path: root.to_string_lossy().to_string(),
+        request: FederationQueryRequestV2 {
+            schema_version: FEDERATION_QUERY_REQUEST_SCHEMA_V2.to_string(),
+            project_key: "saagpatel/knowledgecore".to_string(),
+            include_content: false,
+            limit: 10,
+            observed_at_ms: 2,
+        },
+    });
+    match query {
+        RpcResponse::Ok { data } => {
+            assert_eq!(data.result.state, FederationSourceStateV1::NotFound);
+            assert_eq!(
+                data.result.match_disposition,
+                FederationMatchDispositionV2::None
+            );
+            assert!(data.result.participated);
+        }
+        RpcResponse::Err { error } => panic!("federation v2 query failed: {}", error.code),
+    }
+
+    let denied = document_lifecycle_mutate_rpc(DocumentLifecycleMutateReq {
+        vault_path: root.to_string_lossy().to_string(),
+        request: DocumentLifecycleMutationRequestV1 {
+            schema_version: DOCUMENT_LIFECYCLE_REQUEST_SCHEMA.to_string(),
+            action: DocumentLifecycleActionV1::Tombstone,
+            doc_id: format!("blake3:{}", "a".repeat(64)),
+            replacement_doc_id: None,
+            session_id: unbound_session_id,
+            reason: "synthetic denied RPC attempt".to_string(),
+            effective_at_ms: 5,
+        },
+    });
+    match denied {
+        RpcResponse::Err { error } => assert_eq!(error.code, "KC_LINEAGE_PERMISSION_DENIED"),
+        RpcResponse::Ok { .. } => panic!("lifecycle mutation must remain deny-by-default"),
+    }
+
+    match lineage_policy_add_rpc(LineagePolicyAddReq {
+        vault_path: root.to_string_lossy().to_string(),
+        name: "allow-document-lifecycle-rpc".to_string(),
+        effect: "allow".to_string(),
+        condition_json: r#"{"action":"document.lifecycle.write"}"#.to_string(),
+        created_by: Some("rpc-test".to_string()),
+        now_ms: 5,
+    }) {
+        RpcResponse::Ok { .. } => {}
+        RpcResponse::Err { error } => panic!("lifecycle policy add failed: {}", error.code),
+    }
+    match lineage_policy_bind_rpc(LineagePolicyBindReq {
+        vault_path: root.to_string_lossy().to_string(),
+        subject: "owner-rpc-subject".to_string(),
+        policy: "allow-document-lifecycle-rpc".to_string(),
+        bound_by: Some("rpc-test".to_string()),
+        now_ms: 6,
+    }) {
+        RpcResponse::Ok { .. } => {}
+        RpcResponse::Err { error } => panic!("lifecycle policy bind failed: {}", error.code),
+    }
+
+    let bytes = b"synthetic lifecycle RPC owner document";
+    let paths = vault_paths(&root);
+    let conn = open_db(&paths.db).expect("open RPC lifecycle vault");
+    let store = ObjectStore::new(paths.objects_dir);
+    let ingested = ingest_bytes(
+        &conn,
+        &store,
+        IngestBytesReq {
+            bytes,
+            mime: "text/plain",
+            source_kind: "rpc-test",
+            effective_ts_ms: 7,
+            source_path: None,
+            now_ms: 7,
+        },
+    )
+    .expect("ingest RPC lifecycle document");
+    let canonical_hash = blake3_hex_prefixed(bytes);
+    persist_canonical_text(
+        &conn,
+        &store,
+        &CanonicalTextArtifact {
+            doc_id: ingested.doc_id.clone(),
+            canonical_bytes: bytes.to_vec(),
+            canonical_hash: CanonicalHash(canonical_hash.clone()),
+            canonical_object_hash: ObjectHash(canonical_hash),
+            extractor_name: "rpc-test".to_string(),
+            extractor_version: "1".to_string(),
+            extractor_flags_json: "{}".to_string(),
+            normalization_version: 1,
+            toolchain_json: "{}".to_string(),
+        },
+        7,
+    )
+    .expect("persist RPC lifecycle canonical text");
+    drop(conn);
+
+    let accepted = document_lifecycle_mutate_rpc(DocumentLifecycleMutateReq {
+        vault_path: root.to_string_lossy().to_string(),
+        request: DocumentLifecycleMutationRequestV1 {
+            schema_version: DOCUMENT_LIFECYCLE_REQUEST_SCHEMA.to_string(),
+            action: DocumentLifecycleActionV1::Tombstone,
+            doc_id: ingested.doc_id.0,
+            replacement_doc_id: None,
+            session_id: owner_session_id,
+            reason: "synthetic accepted RPC lifecycle mutation".to_string(),
+            effective_at_ms: 8,
+        },
+    });
+    match accepted {
+        RpcResponse::Ok { data } => {
+            assert_eq!(data.event.action, DocumentLifecycleActionV1::Tombstone);
+            assert!(data
+                .event
+                .authorization_subject_digest
+                .starts_with("blake3:"));
+            assert!(!serde_json::to_string(&data)
+                .expect("serialize accepted lifecycle RPC result")
+                .contains("owner-rpc-subject"));
+        }
+        RpcResponse::Err { error } => panic!("authorized lifecycle RPC failed: {}", error.code),
     }
 }
 

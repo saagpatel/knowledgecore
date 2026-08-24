@@ -42,6 +42,8 @@ fn main() {
         commands::ingest_inbox_stop,
         commands::search_query,
         commands::federation_query,
+        commands::federation_query_v2,
+        commands::document_lifecycle_mutate,
         commands::locator_resolve,
         commands::export_bundle,
         commands::verify_bundle,

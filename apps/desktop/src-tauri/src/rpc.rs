@@ -1,7 +1,11 @@
 use kc_ask::{AskRequest, AskService, RetrievedOnlyAskService};
 use kc_cli::verifier::verify_bundle;
 use kc_core::app_error::AppError;
-use kc_core::federation::{FederationQueryRequestV1, FederationQueryResultV1};
+use kc_core::document_lifecycle::{DocumentLifecycleEventV1, DocumentLifecycleMutationRequestV1};
+use kc_core::federation::{
+    FederationQueryRequestV1, FederationQueryRequestV2, FederationQueryResultV1,
+    FederationQueryResultV2,
+};
 use kc_core::locator::LocatorV1;
 use kc_core::rpc_service;
 use serde::de::Error as DeError;
@@ -686,6 +690,32 @@ pub struct FederationQueryReq {
 #[serde(deny_unknown_fields)]
 pub struct FederationQueryRes {
     pub result: FederationQueryResultV1,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FederationQueryV2Req {
+    pub vault_path: String,
+    pub request: FederationQueryRequestV2,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FederationQueryV2Res {
+    pub result: FederationQueryResultV2,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentLifecycleMutateReq {
+    pub vault_path: String,
+    pub request: DocumentLifecycleMutationRequestV1,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentLifecycleMutateRes {
+    pub event: DocumentLifecycleEventV1,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1858,6 +1888,28 @@ pub fn federation_query_rpc(req: FederationQueryReq) -> RpcResponse<FederationQu
         &req.request,
     ) {
         Ok(result) => RpcResponse::ok(FederationQueryRes { result }),
+        Err(error) => RpcResponse::err(error),
+    }
+}
+
+pub fn federation_query_v2_rpc(req: FederationQueryV2Req) -> RpcResponse<FederationQueryV2Res> {
+    match kc_core::federation::federation_query_service_v2(
+        std::path::Path::new(&req.vault_path),
+        &req.request,
+    ) {
+        Ok(result) => RpcResponse::ok(FederationQueryV2Res { result }),
+        Err(error) => RpcResponse::err(error),
+    }
+}
+
+pub fn document_lifecycle_mutate_rpc(
+    req: DocumentLifecycleMutateReq,
+) -> RpcResponse<DocumentLifecycleMutateRes> {
+    match rpc_service::document_lifecycle_mutate_service(
+        std::path::Path::new(&req.vault_path),
+        &req.request,
+    ) {
+        Ok(event) => RpcResponse::ok(DocumentLifecycleMutateRes { event }),
         Err(error) => RpcResponse::err(error),
     }
 }

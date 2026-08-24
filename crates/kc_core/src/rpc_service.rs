@@ -4,6 +4,9 @@ use crate::db::{
     db_is_unlocked, db_lock, db_unlock, derive_db_encryption_state, migrate_db_to_sqlcipher,
     open_db, DbMigrationOutcome,
 };
+use crate::document_lifecycle::{
+    append_document_lifecycle_event, DocumentLifecycleEventV1, DocumentLifecycleMutationRequestV1,
+};
 use crate::events::append_event;
 use crate::hashing::blake3_hex_prefixed;
 use crate::ingest::{ingest_bytes_with_limits, validate_scan_folder_files, IngestBytesReq};
@@ -780,6 +783,15 @@ pub fn vault_open_service(vault_path: &Path) -> AppResult<VaultSummary> {
         vault_id: vault.vault_id,
         vault_slug: vault.vault_slug,
     })
+}
+
+pub fn document_lifecycle_mutate_service(
+    vault_path: &Path,
+    request: &DocumentLifecycleMutationRequestV1,
+) -> AppResult<DocumentLifecycleEventV1> {
+    let vault = vault_open(vault_path)?;
+    let conn = open_db(&vault_path.join(vault.db.relative_path))?;
+    append_document_lifecycle_event(&conn, request)
 }
 
 pub fn ingest_scan_folder_service(

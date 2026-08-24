@@ -523,6 +523,74 @@ pub fn trust_identity_complete(
     })
 }
 
+pub fn authenticate_identity_session(
+    conn: &Connection,
+    session_id: &str,
+    now_ms: i64,
+) -> AppResult<IdentitySessionRecord> {
+    if session_id.trim().is_empty() || now_ms < 0 {
+        return Err(identity_error(
+            "KC_TRUST_IDENTITY_INVALID",
+            "identity session binding is invalid",
+            serde_json::json!({}),
+        ));
+    }
+
+    let session = conn
+        .query_row(
+            "SELECT s.session_id, s.provider_id, s.subject, s.claim_subset_json,
+                    s.issued_at_ms, s.expires_at_ms, s.created_at_ms
+             FROM identity_sessions s
+             JOIN trust_providers p ON p.provider_id=s.provider_id
+             WHERE s.session_id=?1 AND p.enabled=1",
+            [session_id],
+            |row| {
+                Ok(IdentitySessionRecord {
+                    session_id: row.get(0)?,
+                    provider_id: row.get(1)?,
+                    subject: row.get(2)?,
+                    claim_subset_json: row.get(3)?,
+                    issued_at_ms: row.get(4)?,
+                    expires_at_ms: row.get(5)?,
+                    created_at_ms: row.get(6)?,
+                })
+            },
+        )
+        .optional()
+        .map_err(|e| {
+            identity_error(
+                "KC_TRUST_IDENTITY_INVALID",
+                "failed reading identity session binding",
+                serde_json::json!({ "error": e.to_string() }),
+            )
+        })?
+        .ok_or_else(|| {
+            identity_error(
+                "KC_TRUST_IDENTITY_INVALID",
+                "identity session is unavailable",
+                serde_json::json!({}),
+            )
+        })?;
+
+    if now_ms < session.issued_at_ms || now_ms > session.expires_at_ms {
+        return Err(identity_error(
+            "KC_TRUST_IDENTITY_INVALID",
+            "identity session is outside its validity window",
+            serde_json::json!({}),
+        ));
+    }
+    ensure_session_policy_allows(
+        conn,
+        &session.provider_id,
+        &session.session_id,
+        &session.claim_subset_json,
+        session.issued_at_ms,
+        session.expires_at_ms,
+        now_ms,
+    )?;
+    Ok(session)
+}
+
 fn latest_session_subject(conn: &Connection, provider_id: &str, now_ms: i64) -> AppResult<String> {
     conn.query_row(
         "SELECT s.subject

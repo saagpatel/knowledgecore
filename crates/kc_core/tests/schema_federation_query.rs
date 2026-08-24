@@ -45,7 +45,12 @@ fn result_schema() -> serde_json::Value {
         "state": { "enum": ["ready", "not_found", "locked", "permission_denied", "corrupt", "error"] },
         "participated": { "type": "boolean" },
         "vault_id": { "type": "string", "format": "uuid" },
-        "binding": { "type": ["string", "null"] },
+        "binding": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "string", "pattern": "^blake3:[0-9a-f]{64}$" }
+          ]
+        },
         "source_revision": {
           "oneOf": [
             { "type": "null" },
@@ -54,7 +59,7 @@ fn result_schema() -> serde_json::Value {
               "required": ["event_id", "event_hash", "event_at_ms"],
               "properties": {
                 "event_id": { "type": "integer", "minimum": 0 },
-                "event_hash": { "type": "string", "minLength": 1 },
+                "event_hash": { "type": "string", "pattern": "^blake3:[0-9a-f]{64}$" },
                 "event_at_ms": { "type": "integer", "minimum": 0 }
               },
               "additionalProperties": false
@@ -80,7 +85,7 @@ fn result_schema() -> serde_json::Value {
             "properties": {
               "fact_id": { "type": "string", "minLength": 1 },
               "fact_key": { "const": "private_document.match" },
-              "source_item_id": { "type": "string", "minLength": 1 },
+              "source_item_id": { "type": "string", "pattern": "^blake3:[0-9a-f]{64}$" },
               "observed_at_ms": { "type": "integer" },
               "score": { "type": "number" },
               "value": {
@@ -90,7 +95,7 @@ fn result_schema() -> serde_json::Value {
                   "sourceKind": { "type": "string", "minLength": 1 },
                   "effectiveTsMs": { "type": "integer" },
                   "ingestedEventId": { "type": "integer", "minimum": 0 },
-                  "canonicalHash": { "type": "string", "pattern": "^blake3:" },
+                  "canonicalHash": { "type": "string", "pattern": "^blake3:[0-9a-f]{64}$" },
                   "extractor": {
                     "type": "object",
                     "required": ["name", "version", "normalizationVersion", "toolchain"],
@@ -102,7 +107,7 @@ fn result_schema() -> serde_json::Value {
                         "type": "object",
                         "required": ["digest"],
                         "properties": {
-                          "digest": { "type": "string", "pattern": "^blake3:" }
+                          "digest": { "type": "string", "pattern": "^blake3:[0-9a-f]{64}$" }
                         },
                         "additionalProperties": false
                       }
@@ -113,7 +118,7 @@ fn result_schema() -> serde_json::Value {
                 },
                 "additionalProperties": false
               },
-              "value_digest": { "type": "string", "pattern": "^blake3:" }
+              "value_digest": { "type": "string", "pattern": "^blake3:[0-9a-f]{64}$" }
             },
             "additionalProperties": false
           }
@@ -144,10 +149,10 @@ fn schema_federation_query_accepts_strict_request_and_result() {
         state: FederationSourceStateV1::NotFound,
         participated: true,
         vault_id: "4b7a2f0c-e197-4e9d-8d7c-4ce97e7474d2".to_string(),
-        binding: Some("blake3:binding".to_string()),
+        binding: Some(format!("blake3:{}", "a".repeat(64))),
         source_revision: Some(FederationSourceRevisionV1 {
             event_id: 1,
-            event_hash: "blake3:event".to_string(),
+            event_hash: format!("blake3:{}", "b".repeat(64)),
             event_at_ms: 90,
         }),
         observed_at_ms: 100,
@@ -162,24 +167,24 @@ fn schema_federation_query_accepts_strict_request_and_result() {
             .to_string(),
         uncertainty: vec!["deletion unknown".to_string()],
         facts: vec![FederationFactV1 {
-            fact_id: "knowledgecore:document:doc-1".to_string(),
+            fact_id: format!("knowledgecore:document:blake3:{}", "c".repeat(64)),
             fact_key: "private_document.match".to_string(),
-            source_item_id: "doc-1".to_string(),
+            source_item_id: format!("blake3:{}", "c".repeat(64)),
             observed_at_ms: 80,
             score: 1.0,
             value: json!({
               "sourceKind": "notes",
               "effectiveTsMs": 80,
               "ingestedEventId": 1,
-              "canonicalHash": "blake3:document",
+              "canonicalHash": format!("blake3:{}", "d".repeat(64)),
               "extractor": {
                 "name": "plain-text",
                 "version": "1",
                 "normalizationVersion": 1,
-                "toolchain": { "digest": "blake3:toolchain" }
+                "toolchain": { "digest": format!("blake3:{}", "e".repeat(64)) }
               }
             }),
-            value_digest: "blake3:value".to_string(),
+            value_digest: format!("blake3:{}", "f".repeat(64)),
         }],
     };
     assert!(validator_for(&result_schema())

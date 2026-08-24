@@ -16,6 +16,8 @@ pub const FEDERATION_QUERY_RESULT_SCHEMA: &str = "knowledgecore_federation_query
 const MAX_RESULT_LIMIT: usize = 20;
 const MAX_SCAN_CANDIDATES: usize = 200;
 const MAX_SNIPPET_CHARS: usize = 240;
+const MAX_PROVENANCE_STRING_CHARS: usize = 100;
+const MAX_TOOLCHAIN_JSON_BYTES: usize = 64 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -366,6 +368,14 @@ fn run_query(
             || validate_blake3_prefixed(&candidate.canonical_object_hash).is_err()
             || validate_blake3_prefixed(&candidate.canonical_hash).is_err()
             || candidate.canonical_object_hash != candidate.canonical_hash
+            || candidate.source_kind.trim().is_empty()
+            || candidate.source_kind.chars().count() > MAX_PROVENANCE_STRING_CHARS
+            || candidate.extractor_name.trim().is_empty()
+            || candidate.extractor_name.chars().count() > MAX_PROVENANCE_STRING_CHARS
+            || candidate.extractor_version.chars().count() > MAX_PROVENANCE_STRING_CHARS
+            || candidate.normalization_version < 0
+            || candidate.ingested_event_id < 0
+            || candidate.toolchain_json.len() > MAX_TOOLCHAIN_JSON_BYTES
         {
             return Err(AppError::new(
                 "KC_DB_INTEGRITY_FAILED",

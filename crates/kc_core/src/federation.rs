@@ -225,6 +225,16 @@ fn public_failure_state(error: &AppError) -> FederationSourceStateV1 {
     }
 }
 
+fn public_vault_open_error(error: &AppError) -> AppError {
+    AppError::new(
+        &error.code,
+        "federation",
+        "KnowledgeCore vault identity is unavailable",
+        false,
+        json!({}),
+    )
+}
+
 fn base_result(vault: &VaultJsonV3, request: &FederationQueryRequestV1) -> FederationQueryResultV1 {
     FederationQueryResultV1 {
         schema_version: FEDERATION_QUERY_RESULT_SCHEMA.to_string(),
@@ -413,7 +423,11 @@ pub fn federation_query_service(
     request: &FederationQueryRequestV1,
 ) -> AppResult<FederationQueryResultV1> {
     let limit = validate_request(request)?;
-    let vault = vault_open(vault_path)?;
+    // A result envelope cannot claim a vault binding until the owner has
+    // authenticated vault.json. Preserve the owner error code for the
+    // transport, but do not expose the supplied path or raw parser details and
+    // do not invent a placeholder vault identity.
+    let vault = vault_open(vault_path).map_err(|error| public_vault_open_error(&error))?;
     match run_query(&vault, vault_path, request, limit) {
         Ok(result) => Ok(result),
         Err(error) => {

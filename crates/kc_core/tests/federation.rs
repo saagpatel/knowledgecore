@@ -176,3 +176,18 @@ fn malformed_request_fails_before_vault_access() {
     let error = federation_query_service(temp.path(), &invalid).expect_err("invalid request");
     assert_eq!(error.code, "KC_FEDERATION_SCHEMA_UNSUPPORTED");
 }
+
+#[test]
+fn missing_vault_fails_without_exposing_the_requested_path() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let missing_vault = temp.path().join("private-vault-name");
+    let error =
+        federation_query_service(&missing_vault, &request("saagpatel/knowledgecore", false))
+            .expect_err("missing vault must remain a transport failure before binding");
+    assert_eq!(error.code, "KC_VAULT_JSON_MISSING");
+    assert_eq!(error.category, "federation");
+    assert_eq!(error.details, serde_json::json!({}));
+    let serialized = serde_json::to_string(&error).expect("serialize error");
+    assert!(!serialized.contains(&missing_vault.to_string_lossy().to_string()));
+    assert!(!serialized.contains("private-vault-name"));
+}

@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 use jsonschema::validator_for;
 use kc_core::federation::{
     FederationFactV1, FederationQueryRequestV1, FederationQueryResultV1,

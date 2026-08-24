@@ -3,6 +3,7 @@ pub mod canon_json;
 pub mod canonical;
 pub mod chunking;
 pub mod db;
+pub mod document_lifecycle;
 pub mod events;
 pub mod export;
 pub mod federation;

@@ -1,5 +1,10 @@
 use crate::app_error::{AppError, AppResult};
 use crate::db::{db_passphrase_for_vault, open_db_readonly};
+use crate::document_lifecycle::{
+    load_document_lifecycle_events, resolve_document_lifecycle, DocumentLifecycleActionV1,
+    DocumentLifecycleInitialStateV1, DocumentLifecycleResolutionV1,
+    DocumentLifecycleTerminalStateV1,
+};
 use crate::hashing::{blake3_hex_prefixed, validate_blake3_prefixed};
 use crate::object_store::ObjectStore;
 use crate::types::ObjectHash;
@@ -12,6 +17,8 @@ use std::path::Path;
 
 pub const FEDERATION_QUERY_REQUEST_SCHEMA: &str = "knowledgecore_federation_query_request.v1";
 pub const FEDERATION_QUERY_RESULT_SCHEMA: &str = "knowledgecore_federation_query_result.v1";
+pub const FEDERATION_QUERY_REQUEST_SCHEMA_V2: &str = "knowledgecore_federation_query_request.v2";
+pub const FEDERATION_QUERY_RESULT_SCHEMA_V2: &str = "knowledgecore_federation_query_result.v2";
 
 const MAX_RESULT_LIMIT: usize = 20;
 const MAX_SCAN_CANDIDATES: usize = 200;
@@ -29,7 +36,7 @@ pub struct FederationQueryRequestV1 {
     pub observed_at_ms: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum FederationSourceStateV1 {
     Ready,
@@ -85,6 +92,98 @@ pub struct FederationQueryResultV1 {
     pub facts: Vec<FederationFactV1>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct FederationQueryRequestV2 {
+    pub schema_version: String,
+    pub project_key: String,
+    pub include_content: bool,
+    pub limit: usize,
+    pub observed_at_ms: i64,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum FederationFactLifecycleStateV2 {
+    Active,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum FederationMatchDispositionV2 {
+    None,
+    Active,
+    Suppressed,
+    ActiveAndSuppressed,
+    Conflicted,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct FederationFactV2 {
+    pub fact_id: String,
+    pub fact_key: String,
+    pub source_item_id: String,
+    pub observed_at_ms: i64,
+    pub score: f64,
+    pub lifecycle_state: FederationFactLifecycleStateV2,
+    pub value: serde_json::Value,
+    pub value_digest: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct FederationLifecycleEventRefV2 {
+    pub event_id: i64,
+    pub event_hash: String,
+    pub event_at_ms: i64,
+    pub action: DocumentLifecycleActionV1,
+    pub source_item_id: String,
+    pub source_canonical_hash: String,
+    pub replacement_source_item_id: Option<String>,
+    pub replacement_canonical_hash: Option<String>,
+    pub authorized_subject_id: String,
+    pub reason_digest: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct FederationLifecycleNoticeV2 {
+    pub source_item_id: String,
+    pub initial_state: DocumentLifecycleInitialStateV1,
+    pub terminal_state: DocumentLifecycleTerminalStateV1,
+    pub terminal_source_item_id: Option<String>,
+    pub events: Vec<FederationLifecycleEventRefV2>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct FederationQueryResultV2 {
+    pub schema_version: String,
+    pub source_id: String,
+    pub owner: String,
+    pub canonicality: String,
+    pub state: FederationSourceStateV1,
+    pub participated: bool,
+    pub vault_id: String,
+    pub binding: Option<String>,
+    pub source_revision: Option<FederationSourceRevisionV1>,
+    pub observed_at_ms: i64,
+    pub freshness: String,
+    pub freshness_basis: String,
+    pub trust_semantics: String,
+    pub access_mode: String,
+    pub instruction_boundary: String,
+    pub correction_semantics: String,
+    pub deletion_semantics: String,
+    pub query_match_semantics: String,
+    pub match_disposition: FederationMatchDispositionV2,
+    pub uncertainty: Vec<String>,
+    pub lifecycle_notices: Vec<FederationLifecycleNoticeV2>,
+    pub facts: Vec<FederationFactV2>,
+}
+
 #[derive(Debug)]
 struct CandidateRow {
     doc_id: String,
@@ -107,6 +206,42 @@ fn validate_request(request: &FederationQueryRequestV1) -> AppResult<usize> {
             "unsupported federation request schema",
             false,
             json!({ "expected": FEDERATION_QUERY_REQUEST_SCHEMA }),
+        ));
+    }
+    if request.observed_at_ms < 0 {
+        return Err(AppError::new(
+            "KC_FEDERATION_REQUEST_INVALID",
+            "federation",
+            "observed_at_ms must be non-negative",
+            false,
+            json!({}),
+        ));
+    }
+    let project_key = request.project_key.trim();
+    let valid = Regex::new(
+        r"^(?:[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*|supp:[A-Za-z0-9][A-Za-z0-9._-]*)$",
+    )
+    .expect("constant project key regex");
+    if project_key.len() > 200 || !valid.is_match(project_key) {
+        return Err(AppError::new(
+            "KC_FEDERATION_REQUEST_INVALID",
+            "federation",
+            "project_key must be an exact owner/repo or supp:effort key",
+            false,
+            json!({}),
+        ));
+    }
+    Ok(request.limit.clamp(1, MAX_RESULT_LIMIT))
+}
+
+fn validate_request_v2(request: &FederationQueryRequestV2) -> AppResult<usize> {
+    if request.schema_version != FEDERATION_QUERY_REQUEST_SCHEMA_V2 {
+        return Err(AppError::new(
+            "KC_FEDERATION_SCHEMA_UNSUPPORTED",
+            "federation",
+            "unsupported federation request schema",
+            false,
+            json!({ "expected": FEDERATION_QUERY_REQUEST_SCHEMA_V2 }),
         ));
     }
     if request.observed_at_ms < 0 {
@@ -208,6 +343,20 @@ fn source_binding(vault: &VaultJsonV3, revision: &FederationSourceRevisionV1) ->
     )
 }
 
+fn source_binding_v2(vault: &VaultJsonV3, revision: &FederationSourceRevisionV1) -> String {
+    blake3_hex_prefixed(
+        format!(
+            "{}\n{}\n{}\n{}\n{}",
+            FEDERATION_QUERY_RESULT_SCHEMA_V2,
+            vault.vault_id,
+            vault.schema_version,
+            revision.event_id,
+            revision.event_hash
+        )
+        .as_bytes(),
+    )
+}
+
 fn bounded_snippet(text: &str) -> String {
     text.chars().take(MAX_SNIPPET_CHARS).collect()
 }
@@ -220,6 +369,8 @@ fn public_failure_state(error: &AppError) -> FederationSourceStateV1 {
         "KC_DB_PERMISSION_DENIED" => FederationSourceStateV1::PermissionDenied,
         "KC_DB_SCHEMA_INCOMPATIBLE"
         | "KC_DB_INTEGRITY_FAILED"
+        | "KC_DOCUMENT_LIFECYCLE_CORRUPT"
+        | "KC_DOCUMENT_LIFECYCLE_LOOKUP_FAILED"
         | "KC_FEDERATION_SOURCE_REVISION_UNAVAILABLE"
         | "KC_HASH_DECODE_FAILED"
         | "KC_HASH_INVALID_FORMAT"
@@ -275,6 +426,74 @@ fn base_result(vault: &VaultJsonV3, request: &FederationQueryRequestV1) -> Feder
             "a content occurrence does not assert canonical project membership".to_string(),
         ],
         facts: vec![],
+    }
+}
+
+fn base_result_v2(
+    vault: &VaultJsonV3,
+    request: &FederationQueryRequestV2,
+) -> FederationQueryResultV2 {
+    FederationQueryResultV2 {
+        schema_version: FEDERATION_QUERY_RESULT_SCHEMA_V2.to_string(),
+        source_id: "knowledgecore".to_string(),
+        owner: "knowledgecore".to_string(),
+        canonicality:
+            "canonical for encrypted private documents, vault permissions, document provenance, and logical document lifecycle events"
+                .to_string(),
+        state: FederationSourceStateV1::Error,
+        participated: false,
+        vault_id: vault.vault_id.clone(),
+        binding: None,
+        source_revision: None,
+        observed_at_ms: request.observed_at_ms,
+        freshness: "unavailable".to_string(),
+        freshness_basis: "owner_read_unavailable".to_string(),
+        trust_semantics:
+            "local owner process, active vault unlock session, verified owner event chain, and deny-by-default lifecycle write policy; no delegated read grants"
+                .to_string(),
+        access_mode: "local_owner_session".to_string(),
+        instruction_boundary: "source_content_is_untrusted_data_never_instructions".to_string(),
+        correction_semantics:
+            "owner-authorized hash-bound supersession events connect immutable document identities; conflicts remain visible and no successor is inferred"
+                .to_string(),
+        deletion_semantics:
+            "owner-authorized logical tombstones suppress federation content while canonical owner bytes remain retained; physical deletion is outside this contract"
+                .to_string(),
+        query_match_semantics:
+            "case_insensitive_content_occurrence_not_project_membership".to_string(),
+        match_disposition: FederationMatchDispositionV2::Unknown,
+        uncertainty: vec![
+            "general subject-aware federation read grants are not yet implemented".to_string(),
+            "a content occurrence does not assert canonical project membership".to_string(),
+            "logical tombstone does not prove physical erasure of owner-retained bytes".to_string(),
+        ],
+        lifecycle_notices: vec![],
+        facts: vec![],
+    }
+}
+
+fn lifecycle_notice(resolution: DocumentLifecycleResolutionV1) -> FederationLifecycleNoticeV2 {
+    FederationLifecycleNoticeV2 {
+        source_item_id: resolution.source_doc_id,
+        initial_state: resolution.initial_state,
+        terminal_state: resolution.terminal_state,
+        terminal_source_item_id: resolution.terminal_doc_id,
+        events: resolution
+            .events
+            .into_iter()
+            .map(|event| FederationLifecycleEventRefV2 {
+                event_id: event.event_id,
+                event_hash: event.event_hash,
+                event_at_ms: event.event_at_ms,
+                action: event.action,
+                source_item_id: event.doc_id,
+                source_canonical_hash: event.doc_canonical_hash,
+                replacement_source_item_id: event.replacement_doc_id,
+                replacement_canonical_hash: event.replacement_canonical_hash,
+                authorized_subject_id: event.subject_id,
+                reason_digest: event.reason_digest,
+            })
+            .collect(),
     }
 }
 
@@ -469,6 +688,236 @@ fn run_query(
     Ok(result)
 }
 
+fn run_query_v2(
+    vault: &VaultJsonV3,
+    vault_path: &Path,
+    request: &FederationQueryRequestV2,
+    limit: usize,
+) -> AppResult<FederationQueryResultV2> {
+    let conn = open_db_readonly(&vault_path.join(&vault.db.relative_path))?;
+    let store = store_for_read(vault, vault_path)?;
+    let snapshot = conn.unchecked_transaction().map_err(|error| {
+        AppError::new(
+            "KC_RETRIEVAL_FAILED",
+            "federation",
+            "failed opening a read-only federation snapshot",
+            false,
+            json!({ "error": error.to_string() }),
+        )
+    })?;
+    let lifecycle_by_doc = load_document_lifecycle_events(&snapshot)?;
+    let revision = source_revision(&snapshot)?;
+    let binding = source_binding_v2(vault, &revision);
+    let mut statement = snapshot
+        .prepare(
+            "SELECT d.doc_id, d.source_kind, d.effective_ts_ms, d.ingested_event_id, \
+                    c.canonical_object_hash, c.canonical_hash, c.extractor_name, c.extractor_version, \
+                    c.normalization_version, c.toolchain_json \
+             FROM canonical_text AS c \
+             JOIN docs AS d ON d.doc_id = c.doc_id \
+             ORDER BY d.ingested_event_id DESC, d.doc_id ASC \
+             LIMIT ?1",
+        )
+        .map_err(|error| {
+            AppError::new(
+                "KC_RETRIEVAL_FAILED",
+                "federation",
+                "failed preparing federation query",
+                false,
+                json!({ "error": error.to_string() }),
+            )
+        })?;
+    let candidates = statement
+        .query_map([MAX_SCAN_CANDIDATES as i64], |row| {
+            Ok(CandidateRow {
+                doc_id: row.get(0)?,
+                source_kind: row.get(1)?,
+                effective_ts_ms: row.get(2)?,
+                ingested_event_id: row.get(3)?,
+                canonical_object_hash: row.get(4)?,
+                canonical_hash: row.get(5)?,
+                extractor_name: row.get(6)?,
+                extractor_version: row.get(7)?,
+                normalization_version: row.get(8)?,
+                toolchain_json: row.get(9)?,
+            })
+        })
+        .map_err(|error| {
+            AppError::new(
+                "KC_RETRIEVAL_FAILED",
+                "federation",
+                "failed running federation query",
+                false,
+                json!({ "error": error.to_string() }),
+            )
+        })?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| {
+            AppError::new(
+                "KC_RETRIEVAL_FAILED",
+                "federation",
+                "failed decoding federation query row",
+                false,
+                json!({ "error": error.to_string() }),
+            )
+        })?;
+    drop(statement);
+
+    let needle = request.project_key.to_lowercase();
+    let mut facts = Vec::new();
+    let mut lifecycle_notices = Vec::new();
+    for candidate in candidates {
+        if validate_blake3_prefixed(&candidate.doc_id).is_err()
+            || validate_blake3_prefixed(&candidate.canonical_object_hash).is_err()
+            || validate_blake3_prefixed(&candidate.canonical_hash).is_err()
+            || candidate.canonical_object_hash != candidate.canonical_hash
+            || candidate.source_kind.trim().is_empty()
+            || candidate.source_kind.chars().count() > MAX_PROVENANCE_STRING_CHARS
+            || candidate.extractor_name.trim().is_empty()
+            || candidate.extractor_name.chars().count() > MAX_PROVENANCE_STRING_CHARS
+            || candidate.extractor_version.chars().count() > MAX_PROVENANCE_STRING_CHARS
+            || candidate.normalization_version < 0
+            || candidate.ingested_event_id < 0
+            || candidate.toolchain_json.len() > MAX_TOOLCHAIN_JSON_BYTES
+        {
+            return Err(AppError::new(
+                "KC_DB_INTEGRITY_FAILED",
+                "federation",
+                "canonical document identity is invalid",
+                false,
+                json!({}),
+            ));
+        }
+        let canonical_bytes =
+            store.get_bytes(&ObjectHash(candidate.canonical_object_hash.clone()))?;
+        if blake3_hex_prefixed(&canonical_bytes) != candidate.canonical_hash {
+            return Err(AppError::new(
+                "KC_DB_INTEGRITY_FAILED",
+                "federation",
+                "canonical document content does not match its owner hash",
+                false,
+                json!({}),
+            ));
+        }
+        let text = String::from_utf8(canonical_bytes).map_err(|_| {
+            AppError::new(
+                "KC_RETRIEVAL_FAILED",
+                "federation",
+                "canonical document text is not UTF-8",
+                false,
+                json!({}),
+            )
+        })?;
+        if !text.to_lowercase().contains(&needle) {
+            continue;
+        }
+
+        let resolution = resolve_document_lifecycle(&candidate.doc_id, &lifecycle_by_doc)?;
+        if resolution.initial_state != DocumentLifecycleInitialStateV1::Active {
+            lifecycle_notices.push(lifecycle_notice(resolution));
+        } else {
+            let mut value = json!({
+                "sourceKind": candidate.source_kind,
+                "effectiveTsMs": candidate.effective_ts_ms,
+                "ingestedEventId": candidate.ingested_event_id,
+                "canonicalHash": candidate.canonical_hash,
+                "extractor": {
+                    "name": candidate.extractor_name,
+                    "version": candidate.extractor_version,
+                    "normalizationVersion": candidate.normalization_version,
+                    "toolchain": {
+                        "digest": blake3_hex_prefixed(candidate.toolchain_json.as_bytes())
+                    }
+                }
+            });
+            if request.include_content {
+                value["snippet"] = json!(bounded_snippet(&text));
+            }
+            let value_bytes = serde_json::to_vec(&value).map_err(|error| {
+                AppError::new(
+                    "KC_INTERNAL_ERROR",
+                    "federation",
+                    "failed serializing bounded federation value",
+                    false,
+                    json!({ "error": error.to_string() }),
+                )
+            })?;
+            facts.push(FederationFactV2 {
+                fact_id: format!("knowledgecore:document:{}", candidate.doc_id),
+                fact_key: "private_document.match".to_string(),
+                source_item_id: candidate.doc_id,
+                observed_at_ms: candidate.effective_ts_ms,
+                score: 1.0,
+                lifecycle_state: FederationFactLifecycleStateV2::Active,
+                value,
+                value_digest: blake3_hex_prefixed(&value_bytes),
+            });
+        }
+        if facts.len() + lifecycle_notices.len() == limit {
+            break;
+        }
+    }
+    snapshot.commit().map_err(|error| {
+        AppError::new(
+            "KC_RETRIEVAL_FAILED",
+            "federation",
+            "failed closing the read-only federation snapshot",
+            false,
+            json!({ "error": error.to_string() }),
+        )
+    })?;
+
+    let has_conflict = lifecycle_notices.iter().any(|notice| {
+        notice.initial_state == DocumentLifecycleInitialStateV1::Conflicted
+            || notice.terminal_state == DocumentLifecycleTerminalStateV1::Conflicted
+    });
+    let match_disposition = if has_conflict {
+        FederationMatchDispositionV2::Conflicted
+    } else {
+        match (facts.is_empty(), lifecycle_notices.is_empty()) {
+            (true, true) => FederationMatchDispositionV2::None,
+            (false, true) => FederationMatchDispositionV2::Active,
+            (true, false) => FederationMatchDispositionV2::Suppressed,
+            (false, false) => FederationMatchDispositionV2::ActiveAndSuppressed,
+        }
+    };
+
+    let mut result = base_result_v2(vault, request);
+    result.state = if match_disposition == FederationMatchDispositionV2::None {
+        FederationSourceStateV1::NotFound
+    } else {
+        FederationSourceStateV1::Ready
+    };
+    result.participated = true;
+    result.binding = Some(binding);
+    result.source_revision = Some(revision);
+    result.freshness = "fresh".to_string();
+    result.freshness_basis = "verified_owner_event_chain_revision".to_string();
+    result.match_disposition = match_disposition;
+    result.lifecycle_notices = lifecycle_notices;
+    result.facts = facts;
+    if request.include_content {
+        result
+            .uncertainty
+            .push("bounded snippets may omit surrounding document context".to_string());
+    }
+    if matches!(
+        result.match_disposition,
+        FederationMatchDispositionV2::Suppressed
+            | FederationMatchDispositionV2::ActiveAndSuppressed
+    ) {
+        result.uncertainty.push(
+            "matching historical content was suppressed by owner lifecycle events".to_string(),
+        );
+    }
+    if result.match_disposition == FederationMatchDispositionV2::Conflicted {
+        result.uncertainty.push(
+            "conflicting owner lifecycle events are visible; no successor was selected".to_string(),
+        );
+    }
+    Ok(result)
+}
+
 /// Read a KnowledgeCore vault through a bounded, source-owned federation
 /// contract. Expected lock/corruption/access failures are returned as typed
 /// source states without paths, secrets, or raw storage errors.
@@ -500,6 +949,40 @@ pub fn federation_query_service(
                 _ => "source query failed inside the KnowledgeCore owner boundary",
             }
             .to_string());
+            Ok(result)
+        }
+    }
+}
+
+/// Read a KnowledgeCore vault through the lifecycle-aware V2 federation
+/// contract. Logical deletion and correction remain source-owned events; the
+/// query never mutates or physically deletes canonical owner data.
+pub fn federation_query_service_v2(
+    vault_path: &Path,
+    request: &FederationQueryRequestV2,
+) -> AppResult<FederationQueryResultV2> {
+    let limit = validate_request_v2(request)?;
+    let vault = vault_open(vault_path).map_err(|error| public_vault_open_error(&error))?;
+    match run_query_v2(&vault, vault_path, request, limit) {
+        Ok(result) => Ok(result),
+        Err(error) => {
+            let mut result = base_result_v2(&vault, request);
+            result.state = public_failure_state(&error);
+            result.uncertainty.push(
+                match result.state {
+                    FederationSourceStateV1::Locked => {
+                        "source is locked; unlock remains owned by KnowledgeCore"
+                    }
+                    FederationSourceStateV1::PermissionDenied => {
+                        "source access is denied by the owner boundary"
+                    }
+                    FederationSourceStateV1::Corrupt => {
+                        "source schema, event chain, document lifecycle, or canonical content is corrupt or incompatible"
+                    }
+                    _ => "source query failed inside the KnowledgeCore owner boundary",
+                }
+                .to_string(),
+            );
             Ok(result)
         }
     }

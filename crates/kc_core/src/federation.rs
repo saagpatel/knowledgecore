@@ -6,7 +6,9 @@ use crate::document_lifecycle::{
     DocumentLifecycleTerminalStateV1,
 };
 use crate::hashing::{blake3_hex_prefixed, validate_blake3_prefixed};
+use crate::lineage_policy::lineage_policy_decision;
 use crate::object_store::ObjectStore;
+use crate::trust_identity::authenticate_identity_session;
 use crate::types::ObjectHash;
 use crate::vault::{vault_open, vault_paths, VaultJsonV3};
 use regex::Regex;
@@ -19,6 +21,7 @@ pub const FEDERATION_QUERY_REQUEST_SCHEMA: &str = "knowledgecore_federation_quer
 pub const FEDERATION_QUERY_RESULT_SCHEMA: &str = "knowledgecore_federation_query_result.v1";
 pub const FEDERATION_QUERY_REQUEST_SCHEMA_V2: &str = "knowledgecore_federation_query_request.v2";
 pub const FEDERATION_QUERY_RESULT_SCHEMA_V2: &str = "knowledgecore_federation_query_result.v2";
+pub const DOCUMENT_FEDERATION_READ_ACTION: &str = "document.federation.read";
 
 const MAX_RESULT_LIMIT: usize = 20;
 const MAX_SCAN_CANDIDATES: usize = 200;
@@ -470,6 +473,32 @@ fn base_result_v2(
         lifecycle_notices: vec![],
         facts: vec![],
     }
+}
+
+fn delegated_result_v2(
+    mut result: FederationQueryResultV2,
+    authorization_state: &str,
+) -> FederationQueryResultV2 {
+    result.trust_semantics = format!(
+        "local owner process, active vault unlock session, current non-revoked identity session, and deny-by-default federation read policy; authorization_state={authorization_state}"
+    );
+    result.access_mode = "delegated_local_unix_session".to_string();
+    result.uncertainty.retain(|value| {
+        value != "general subject-aware federation read grants are not yet implemented"
+    });
+    result
+}
+
+fn delegated_failure_v2(
+    vault: &VaultJsonV3,
+    request: &FederationQueryRequestV2,
+    state: FederationSourceStateV1,
+    uncertainty: &str,
+) -> FederationQueryResultV2 {
+    let mut result = delegated_result_v2(base_result_v2(vault, request), "denied_or_unavailable");
+    result.state = state;
+    result.uncertainty.push(uncertainty.to_string());
+    result
 }
 
 fn lifecycle_notice(resolution: DocumentLifecycleResolutionV1) -> FederationLifecycleNoticeV2 {
@@ -986,4 +1015,104 @@ pub fn federation_query_service_v2(
             Ok(result)
         }
     }
+}
+
+/// Read a KnowledgeCore vault for a delegated local consumer without moving
+/// vault ownership into that consumer. The caller supplies only an opaque
+/// identity-session identifier; KnowledgeCore resolves the subject, validates
+/// provider/session policy and revocation at the owner clock, and applies a
+/// deny-by-default federation-read policy before reading canonical data.
+///
+/// Authorization failures are intentionally returned as a bounded
+/// `permission_denied` source result. The result never contains the session
+/// identifier, raw subject, policy reason, vault path, passphrase, or storage
+/// error. This path performs no policy-audit write so the federation read stays
+/// compatible with the owner's read-only snapshot boundary.
+pub fn federation_query_service_v2_authorized(
+    vault_path: &Path,
+    session_id: &str,
+    authorized_at_ms: i64,
+    request: &FederationQueryRequestV2,
+) -> AppResult<FederationQueryResultV2> {
+    let limit = validate_request_v2(request)?;
+    let vault = vault_open(vault_path).map_err(|error| public_vault_open_error(&error))?;
+    let db_path = vault_path.join(&vault.db.relative_path);
+    let conn = match open_db_readonly(&db_path) {
+        Ok(conn) => conn,
+        Err(error) => {
+            let state = public_failure_state(&error);
+            let uncertainty = match state {
+                FederationSourceStateV1::Locked => {
+                    "source is locked; unlock remains owned by KnowledgeCore"
+                }
+                FederationSourceStateV1::PermissionDenied => {
+                    "source access is denied by the owner boundary"
+                }
+                FederationSourceStateV1::Corrupt => {
+                    "source schema or canonical storage is corrupt or incompatible"
+                }
+                _ => "source authorization is unavailable inside the KnowledgeCore owner boundary",
+            };
+            return Ok(delegated_failure_v2(&vault, request, state, uncertainty));
+        }
+    };
+
+    let identity_session = match authenticate_identity_session(&conn, session_id, authorized_at_ms)
+    {
+        Ok(session) => session,
+        Err(_) => {
+            return Ok(delegated_failure_v2(
+                &vault,
+                request,
+                FederationSourceStateV1::PermissionDenied,
+                "delegated source access is denied because the owner identity session is unavailable, expired, revoked, or invalid",
+            ));
+        }
+    };
+    let decision = match lineage_policy_decision(
+        &conn,
+        &identity_session.subject,
+        DOCUMENT_FEDERATION_READ_ACTION,
+        Some(request.project_key.trim()),
+    ) {
+        Ok(decision) => decision,
+        Err(_) => {
+            return Ok(delegated_failure_v2(
+                &vault,
+                request,
+                FederationSourceStateV1::PermissionDenied,
+                "delegated source access is denied because the owner read policy could not be verified",
+            ));
+        }
+    };
+    if !decision.allowed {
+        return Ok(delegated_failure_v2(
+            &vault,
+            request,
+            FederationSourceStateV1::PermissionDenied,
+            "delegated source access is denied by the KnowledgeCore owner read policy",
+        ));
+    }
+    drop(conn);
+
+    let result = match run_query_v2(&vault, vault_path, request, limit) {
+        Ok(result) => result,
+        Err(error) => {
+            let state = public_failure_state(&error);
+            let uncertainty = match state {
+                FederationSourceStateV1::Locked => {
+                    "source is locked; unlock remains owned by KnowledgeCore"
+                }
+                FederationSourceStateV1::PermissionDenied => {
+                    "source access is denied by the owner boundary"
+                }
+                FederationSourceStateV1::Corrupt => {
+                    "source schema, event chain, document lifecycle, or canonical content is corrupt or incompatible"
+                }
+                _ => "source query failed inside the KnowledgeCore owner boundary",
+            };
+            delegated_failure_v2(&vault, request, state, uncertainty)
+        }
+    };
+    Ok(delegated_result_v2(result, "allowed"))
 }

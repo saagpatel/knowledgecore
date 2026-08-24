@@ -80,7 +80,7 @@ fn rpc_schema_rejects_unknown_fields() {
             "action": "tombstone",
             "doc_id": format!("blake3:{}", "a".repeat(64)),
             "replacement_doc_id": null,
-            "subject_id": "owner",
+            "session_id": "4b7a2f0c-e197-4e9d-8d7c-4ce97e7474d2",
             "reason": "test",
             "effective_at_ms": 123
         },

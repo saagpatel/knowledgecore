@@ -2,6 +2,7 @@ use crate::app_error::{AppError, AppResult};
 use crate::events::{append_event, read_verified_event_chain, EventRecord};
 use crate::hashing::{blake3_hex_prefixed, validate_blake3_prefixed};
 use crate::lineage_policy::ensure_lineage_policy_allows;
+use crate::trust_identity::authenticate_identity_session;
 use rusqlite::{Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -14,6 +15,7 @@ const SUPERSEDED_EVENT_TYPE: &str = "document.lifecycle.superseded.v1";
 const TOMBSTONED_EVENT_TYPE: &str = "document.lifecycle.tombstoned.v1";
 const LIFECYCLE_EVENT_PREFIX: &str = "document.lifecycle.";
 const MAX_SUBJECT_CHARS: usize = 200;
+const MAX_SESSION_ID_CHARS: usize = 200;
 const MAX_REASON_CHARS: usize = 240;
 const MAX_CHAIN_DEPTH: usize = 100;
 
@@ -31,7 +33,7 @@ pub struct DocumentLifecycleMutationRequestV1 {
     pub action: DocumentLifecycleActionV1,
     pub doc_id: String,
     pub replacement_doc_id: Option<String>,
-    pub subject_id: String,
+    pub session_id: String,
     pub reason: String,
     pub effective_at_ms: i64,
 }
@@ -61,7 +63,7 @@ pub struct DocumentLifecycleEventV1 {
     pub doc_canonical_hash: String,
     pub replacement_doc_id: Option<String>,
     pub replacement_canonical_hash: Option<String>,
-    pub subject_id: String,
+    pub authorization_subject_digest: String,
     pub reason_digest: String,
 }
 
@@ -210,7 +212,13 @@ fn event_from_record(
         doc_canonical_hash: payload.doc_canonical_hash.clone(),
         replacement_doc_id: payload.replacement_doc_id.clone(),
         replacement_canonical_hash: payload.replacement_canonical_hash.clone(),
-        subject_id: payload.subject_id.clone(),
+        authorization_subject_digest: blake3_hex_prefixed(
+            format!(
+                "kc.document.lifecycle.authorization-subject.v1\n{}",
+                payload.subject_id
+            )
+            .as_bytes(),
+        ),
         reason_digest: blake3_hex_prefixed(payload.reason.as_bytes()),
     };
     Ok(Some((payload, public)))
@@ -274,8 +282,8 @@ pub fn resolve_document_lifecycle(
     let mut events = Vec::new();
     let mut initial_state = DocumentLifecycleInitialStateV1::Active;
 
-    for depth in 0..=MAX_CHAIN_DEPTH {
-        if depth == MAX_CHAIN_DEPTH || !visited.insert(current.clone()) {
+    loop {
+        if !visited.insert(current.clone()) {
             return Err(lifecycle_error(
                 "KC_DOCUMENT_LIFECYCLE_CORRUPT",
                 "document lifecycle contains a cycle or exceeds its depth bound",
@@ -290,6 +298,12 @@ pub fn resolve_document_lifecycle(
                 events,
             });
         };
+        if events.len() >= MAX_CHAIN_DEPTH {
+            return Err(lifecycle_error(
+                "KC_DOCUMENT_LIFECYCLE_CORRUPT",
+                "document lifecycle exceeds its depth bound",
+            ));
+        }
         if current_events.len() != 1 {
             if events.is_empty() {
                 initial_state = DocumentLifecycleInitialStateV1::Conflicted;
@@ -331,14 +345,14 @@ pub fn resolve_document_lifecycle(
             }
         }
     }
-    unreachable!("bounded lifecycle loop returns before exhaustion")
 }
 
 fn validate_request(request: &DocumentLifecycleMutationRequestV1) -> AppResult<()> {
     if request.schema_version != DOCUMENT_LIFECYCLE_REQUEST_SCHEMA
         || request.effective_at_ms < 0
         || validate_blake3_prefixed(&request.doc_id).is_err()
-        || !validate_bounded(&request.subject_id, MAX_SUBJECT_CHARS)
+        || !validate_bounded(&request.session_id, MAX_SESSION_ID_CHARS)
+        || uuid::Uuid::parse_str(&request.session_id).is_err()
         || !validate_bounded(&request.reason, MAX_REASON_CHARS)
     {
         return Err(lifecycle_error(
@@ -384,9 +398,11 @@ pub fn append_document_lifecycle_event(
             "failed beginning document lifecycle transaction",
         )
     })?;
+    let identity_session =
+        authenticate_identity_session(&tx, &request.session_id, request.effective_at_ms)?;
     if let Err(error) = ensure_lineage_policy_allows(
         &tx,
-        &request.subject_id,
+        &identity_session.subject,
         DOCUMENT_LIFECYCLE_WRITE_ACTION,
         Some(&request.doc_id),
         request.effective_at_ms,
@@ -443,7 +459,7 @@ pub fn append_document_lifecycle_event(
         doc_canonical_hash: doc_canonical_hash.clone(),
         replacement_doc_id: request.replacement_doc_id.clone(),
         replacement_canonical_hash: replacement_canonical_hash.clone(),
-        subject_id: request.subject_id.clone(),
+        subject_id: identity_session.subject.clone(),
         reason: request.reason.clone(),
         effective_at_ms: request.effective_at_ms,
     };
@@ -474,7 +490,13 @@ pub fn append_document_lifecycle_event(
         doc_canonical_hash,
         replacement_doc_id: request.replacement_doc_id.clone(),
         replacement_canonical_hash,
-        subject_id: request.subject_id.clone(),
+        authorization_subject_digest: blake3_hex_prefixed(
+            format!(
+                "kc.document.lifecycle.authorization-subject.v1\n{}",
+                identity_session.subject
+            )
+            .as_bytes(),
+        ),
         reason_digest: blake3_hex_prefixed(request.reason.as_bytes()),
     })
 }

@@ -2,9 +2,9 @@ use kc_core::canonical::persist_canonical_text;
 use kc_core::db::open_db;
 use kc_core::document_lifecycle::{
     append_document_lifecycle_event, load_document_lifecycle_events, resolve_document_lifecycle,
-    DocumentLifecycleActionV1, DocumentLifecycleInitialStateV1, DocumentLifecycleMutationRequestV1,
-    DocumentLifecycleTerminalStateV1, DOCUMENT_LIFECYCLE_EVENT_SCHEMA,
-    DOCUMENT_LIFECYCLE_REQUEST_SCHEMA,
+    DocumentLifecycleActionV1, DocumentLifecycleEventV1, DocumentLifecycleInitialStateV1,
+    DocumentLifecycleMutationRequestV1, DocumentLifecycleTerminalStateV1,
+    DOCUMENT_LIFECYCLE_EVENT_SCHEMA, DOCUMENT_LIFECYCLE_REQUEST_SCHEMA,
 };
 use kc_core::events::append_event;
 use kc_core::hashing::blake3_hex_prefixed;
@@ -12,15 +12,20 @@ use kc_core::ingest::{ingest_bytes, IngestBytesReq};
 use kc_core::lineage_policy::{lineage_policy_add, lineage_policy_bind};
 use kc_core::object_store::ObjectStore;
 use kc_core::services::CanonicalTextArtifact;
+use kc_core::trust_identity::{trust_identity_complete, trust_identity_start};
+use kc_core::trust_policy::trust_session_revoke;
 use kc_core::types::{CanonicalHash, ObjectHash};
 use kc_core::vault::{vault_init, vault_paths};
 use rusqlite::Connection;
+use std::collections::BTreeMap;
 
 struct Fixture {
     _temp: tempfile::TempDir,
     conn: Connection,
     store: ObjectStore,
     docs: Vec<(String, Vec<u8>)>,
+    owner_session_id: String,
+    unauthorized_session_id: String,
 }
 
 fn fixture() -> Fixture {
@@ -75,11 +80,22 @@ fn fixture() -> Fixture {
         docs.push((ingested.doc_id.0, bytes.to_vec()));
     }
 
+    trust_identity_start(&conn, "default", 2).expect("start owner identity");
+    let owner_session_id = trust_identity_complete(&conn, "default", "sub:owner-subject", 3)
+        .expect("complete owner identity")
+        .session_id;
+    let unauthorized_session_id =
+        trust_identity_complete(&conn, "default", "sub:unauthorized-subject", 4)
+            .expect("complete unauthorized identity")
+            .session_id;
+
     Fixture {
         _temp: temp,
         conn,
         store,
         docs,
+        owner_session_id,
+        unauthorized_session_id,
     }
 }
 
@@ -107,7 +123,7 @@ fn request(
     action: DocumentLifecycleActionV1,
     doc_id: &str,
     replacement_doc_id: Option<&str>,
-    subject_id: &str,
+    session_id: &str,
     effective_at_ms: i64,
 ) -> DocumentLifecycleMutationRequestV1 {
     DocumentLifecycleMutationRequestV1 {
@@ -115,7 +131,7 @@ fn request(
         action,
         doc_id: doc_id.to_string(),
         replacement_doc_id: replacement_doc_id.map(str::to_string),
-        subject_id: subject_id.to_string(),
+        session_id: session_id.to_string(),
         reason: "owner-approved synthetic lifecycle change".to_string(),
         effective_at_ms,
     }
@@ -149,7 +165,7 @@ fn lifecycle_write_is_deny_by_default_and_preserves_canonical_rows() {
             DocumentLifecycleActionV1::Supersede,
             source,
             Some(replacement),
-            "unauthorized-subject",
+            &fixture.unauthorized_session_id,
             30,
         ),
     )
@@ -167,13 +183,26 @@ fn lifecycle_write_is_deny_by_default_and_preserves_canonical_rows() {
     assert_eq!(denied_audits, 1);
 
     allow_lifecycle(&fixture, "owner-subject");
-    let event = append_document_lifecycle_event(
+    let spoofed = append_document_lifecycle_event(
         &fixture.conn,
         &request(
             DocumentLifecycleActionV1::Supersede,
             source,
             Some(replacement),
             "owner-subject",
+            31,
+        ),
+    )
+    .expect_err("an allowed subject identifier is not an authenticated session");
+    assert_eq!(spoofed.code, "KC_TRUST_IDENTITY_INVALID");
+
+    let event = append_document_lifecycle_event(
+        &fixture.conn,
+        &request(
+            DocumentLifecycleActionV1::Supersede,
+            source,
+            Some(replacement),
+            &fixture.owner_session_id,
             31,
         ),
     )
@@ -185,6 +214,10 @@ fn lifecycle_write_is_deny_by_default_and_preserves_canonical_rows() {
         Some(replacement.as_str())
     );
     assert!(event.reason_digest.starts_with("blake3:"));
+    assert!(event.authorization_subject_digest.starts_with("blake3:"));
+    assert!(!serde_json::to_string(&event)
+        .expect("serialize public lifecycle event")
+        .contains("owner-subject"));
     assert_eq!(table_counts(&fixture.conn), counts_before);
     let events_after: i64 = fixture
         .conn
@@ -222,7 +255,7 @@ fn lifecycle_chain_resolves_corrections_and_tombstone_without_deleting_bytes() {
             DocumentLifecycleActionV1::Supersede,
             source,
             Some(replacement),
-            "owner-subject",
+            &fixture.owner_session_id,
             30,
         ),
     )
@@ -233,7 +266,7 @@ fn lifecycle_chain_resolves_corrections_and_tombstone_without_deleting_bytes() {
             DocumentLifecycleActionV1::Supersede,
             replacement,
             Some(terminal),
-            "owner-subject",
+            &fixture.owner_session_id,
             31,
         ),
     )
@@ -244,7 +277,7 @@ fn lifecycle_chain_resolves_corrections_and_tombstone_without_deleting_bytes() {
             DocumentLifecycleActionV1::Tombstone,
             terminal,
             None,
-            "owner-subject",
+            &fixture.owner_session_id,
             32,
         ),
     )
@@ -278,6 +311,43 @@ fn lifecycle_chain_resolves_corrections_and_tombstone_without_deleting_bytes() {
 }
 
 #[test]
+fn lifecycle_write_rejects_revoked_or_expired_identity_sessions() {
+    let fixture = fixture();
+    allow_lifecycle(&fixture, "owner-subject");
+    trust_session_revoke(&fixture.conn, &fixture.owner_session_id, "tests", 20)
+        .expect("revoke owner session");
+    let revoked = append_document_lifecycle_event(
+        &fixture.conn,
+        &request(
+            DocumentLifecycleActionV1::Tombstone,
+            &fixture.docs[0].0,
+            None,
+            &fixture.owner_session_id,
+            30,
+        ),
+    )
+    .expect_err("revoked session must fail closed");
+    assert_eq!(revoked.code, "KC_TRUST_SESSION_REVOKED");
+
+    let expired_session_id =
+        trust_identity_complete(&fixture.conn, "default", "sub:owner-subject", 40)
+            .expect("complete expiring owner identity")
+            .session_id;
+    let expired = append_document_lifecycle_event(
+        &fixture.conn,
+        &request(
+            DocumentLifecycleActionV1::Tombstone,
+            &fixture.docs[0].0,
+            None,
+            &expired_session_id,
+            40 + 60 * 60 * 1_000 + 1,
+        ),
+    )
+    .expect_err("expired session must fail closed");
+    assert_eq!(expired.code, "KC_TRUST_IDENTITY_INVALID");
+}
+
+#[test]
 fn lifecycle_rejects_duplicate_transition_and_missing_replacement() {
     let fixture = fixture();
     allow_lifecycle(&fixture, "owner-subject");
@@ -291,7 +361,7 @@ fn lifecycle_rejects_duplicate_transition_and_missing_replacement() {
             DocumentLifecycleActionV1::Supersede,
             source,
             Some(&missing),
-            "owner-subject",
+            &fixture.owner_session_id,
             30,
         ),
     )
@@ -304,7 +374,7 @@ fn lifecycle_rejects_duplicate_transition_and_missing_replacement() {
             DocumentLifecycleActionV1::Supersede,
             source,
             Some(replacement),
-            "owner-subject",
+            &fixture.owner_session_id,
             31,
         ),
     )
@@ -315,7 +385,7 @@ fn lifecycle_rejects_duplicate_transition_and_missing_replacement() {
             DocumentLifecycleActionV1::Tombstone,
             source,
             None,
-            "owner-subject",
+            &fixture.owner_session_id,
             32,
         ),
     )
@@ -409,4 +479,42 @@ fn lifecycle_detects_cycles_in_admitted_event_data() {
         .store
         .exists(&ObjectHash(replacement.0.clone()))
         .expect("replacement object existence"));
+}
+
+#[test]
+fn lifecycle_depth_bound_accepts_100_events_and_rejects_101() {
+    let digest = |value: usize| format!("blake3:{value:064x}");
+    let mut by_doc = BTreeMap::new();
+    for index in 0..101 {
+        by_doc.insert(
+            digest(index + 1),
+            vec![DocumentLifecycleEventV1 {
+                event_id: index as i64 + 1,
+                event_hash: digest(index + 1_000),
+                event_at_ms: index as i64,
+                action: DocumentLifecycleActionV1::Supersede,
+                doc_id: digest(index + 1),
+                doc_canonical_hash: digest(index + 2_000),
+                replacement_doc_id: Some(digest(index + 2)),
+                replacement_canonical_hash: Some(digest(index + 3_000)),
+                authorization_subject_digest: digest(4_000),
+                reason_digest: digest(4_001),
+            }],
+        );
+    }
+
+    let source = digest(1);
+    let hundred: BTreeMap<_, _> = by_doc
+        .iter()
+        .take(100)
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect();
+    let admitted = resolve_document_lifecycle(&source, &hundred).expect("100 events admitted");
+    assert_eq!(admitted.events.len(), 100);
+    let terminal = digest(101);
+    assert_eq!(admitted.terminal_doc_id.as_deref(), Some(terminal.as_str()));
+
+    let rejected = resolve_document_lifecycle(&source, &by_doc)
+        .expect_err("101 lifecycle events must exceed the bound");
+    assert_eq!(rejected.code, "KC_DOCUMENT_LIFECYCLE_CORRUPT");
 }

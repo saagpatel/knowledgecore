@@ -79,7 +79,7 @@ fn result_schema() -> serde_json::Value {
         "required": [
             "event_id", "event_hash", "event_at_ms", "action", "source_item_id",
             "source_canonical_hash", "replacement_source_item_id",
-            "replacement_canonical_hash", "authorized_subject_id", "reason_digest"
+            "replacement_canonical_hash", "authorization_subject_digest", "reason_digest"
         ],
         "properties": {
             "event_id": { "type": "integer", "minimum": 1 },
@@ -90,7 +90,7 @@ fn result_schema() -> serde_json::Value {
             "source_canonical_hash": hash_schema(),
             "replacement_source_item_id": optional_hash_schema(),
             "replacement_canonical_hash": optional_hash_schema(),
-            "authorized_subject_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+            "authorization_subject_digest": hash_schema(),
             "reason_digest": hash_schema()
         },
         "additionalProperties": false
@@ -234,8 +234,8 @@ fn schema_federation_query_v2_accepts_strict_request_and_result() {
                 source_canonical_hash: hash_c.clone(),
                 replacement_source_item_id: Some(hash_c.clone()),
                 replacement_canonical_hash: Some(hash_c.clone()),
-                authorized_subject_id: "owner-subject".to_string(),
-                reason_digest: format!("blake3:{}", "d".repeat(64)),
+                authorization_subject_digest: format!("blake3:{}", "d".repeat(64)),
+                reason_digest: format!("blake3:{}", "e".repeat(64)),
             }],
         }],
         facts: vec![FederationFactV2 {
@@ -254,10 +254,10 @@ fn schema_federation_query_v2_accepts_strict_request_and_result() {
                     "name": "plain-text",
                     "version": "1",
                     "normalizationVersion": 1,
-                    "toolchain": { "digest": format!("blake3:{}", "e".repeat(64)) }
+                    "toolchain": { "digest": format!("blake3:{}", "f".repeat(64)) }
                 }
             }),
-            value_digest: format!("blake3:{}", "f".repeat(64)),
+            value_digest: format!("blake3:{}", "0".repeat(64)),
         }],
     };
     assert!(validator_for(&result_schema())

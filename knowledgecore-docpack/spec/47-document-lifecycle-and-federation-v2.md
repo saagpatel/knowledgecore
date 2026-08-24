@@ -18,11 +18,13 @@ the lifecycle events defined here.
 - `supersede`, with one distinct replacement document identity; or
 - `tombstone`, with no replacement.
 
-Every request carries a canonical source document ID, an explicit subject,
-bounded reason, and caller-controlled effective time. The mutation is denied
-unless the existing policy engine returns an explicit allow for action
-`document.lifecycle.write` and the source document. Existing role names do not
-implicitly grant this permission.
+Every request carries a canonical source document ID, an identity-session ID,
+bounded reason, and caller-controlled effective time. KnowledgeCore resolves
+the subject from that exact non-expired, non-revoked session and applies its
+provider policy; callers cannot nominate an authorization subject directly.
+The mutation is then denied unless the existing policy engine returns an
+explicit allow for action `document.lifecycle.write` and the source document.
+Existing role names do not implicitly grant this permission.
 
 An accepted request appends `knowledgecore_document_lifecycle_event.v1` as
 either `document.lifecycle.superseded.v1` or
@@ -32,8 +34,9 @@ either `document.lifecycle.superseded.v1` or
 - replacement document ID and current canonical hash for supersession;
 - authorized subject, bounded owner reason, and effective time.
 
-The public federation notice exposes a BLAKE3 digest of the reason, never the
-raw reason. Owner storage retains the raw event for audit.
+The public mutation result and federation notice expose domain-separated
+BLAKE3 digests of the authorization subject and reason, never either raw
+value. Owner storage retains the raw event for audit.
 
 ## Resolution and failure rules
 
@@ -61,7 +64,8 @@ shape and limits. `knowledgecore_federation_query_result.v2` adds:
   `active_and_suppressed`, `conflicted`, or `unknown`;
 - active facts explicitly marked `lifecycle_state=active`;
 - content-free `lifecycle_notices` bound to source/replacement document hashes,
-  event IDs, event hashes, event times, authorized subjects, and reason digests.
+  event IDs, event hashes, event times, authorization-subject digests, and
+  reason digests.
 
 The V2 query verifies the complete owner event chain before participation. An
 active matching document may return bounded content only when requested. A

@@ -36,6 +36,8 @@ use apps_desktop_tauri::rpc::{
     VaultRecoveryVerifyReq, VaultUnlockReq,
 };
 use kc_core::app_error::AppError;
+use kc_core::canonical::persist_canonical_text;
+use kc_core::db::open_db;
 use kc_core::document_lifecycle::{
     DocumentLifecycleActionV1, DocumentLifecycleMutationRequestV1,
     DOCUMENT_LIFECYCLE_REQUEST_SCHEMA,
@@ -44,6 +46,12 @@ use kc_core::federation::{
     FederationMatchDispositionV2, FederationQueryRequestV1, FederationQueryRequestV2,
     FederationSourceStateV1, FEDERATION_QUERY_REQUEST_SCHEMA, FEDERATION_QUERY_REQUEST_SCHEMA_V2,
 };
+use kc_core::hashing::blake3_hex_prefixed;
+use kc_core::ingest::{ingest_bytes, IngestBytesReq};
+use kc_core::object_store::ObjectStore;
+use kc_core::services::CanonicalTextArtifact;
+use kc_core::types::{CanonicalHash, ObjectHash};
+use kc_core::vault::vault_paths;
 use std::sync::{Mutex, OnceLock};
 
 fn env_lock() -> &'static Mutex<()> {
@@ -171,6 +179,35 @@ fn rpc_federation_v2_and_lifecycle_mutation_preserve_owner_boundaries() {
         RpcResponse::Err { error } => panic!("vault init failed: {}", error.code),
     }
 
+    match trust_identity_start_rpc(TrustIdentityStartReq {
+        vault_path: root.to_string_lossy().to_string(),
+        provider: "default".to_string(),
+        now_ms: 2,
+    }) {
+        RpcResponse::Ok { .. } => {}
+        RpcResponse::Err { error } => panic!("trust identity start failed: {}", error.code),
+    }
+    let owner_session_id = match trust_identity_complete_rpc(TrustIdentityCompleteReq {
+        vault_path: root.to_string_lossy().to_string(),
+        provider: "default".to_string(),
+        auth_code: "sub:owner-rpc-subject".to_string(),
+        now_ms: 3,
+    }) {
+        RpcResponse::Ok { data } => data.session_id,
+        RpcResponse::Err { error } => panic!("owner identity completion failed: {}", error.code),
+    };
+    let unbound_session_id = match trust_identity_complete_rpc(TrustIdentityCompleteReq {
+        vault_path: root.to_string_lossy().to_string(),
+        provider: "default".to_string(),
+        auth_code: "sub:unbound-rpc-subject".to_string(),
+        now_ms: 4,
+    }) {
+        RpcResponse::Ok { data } => data.session_id,
+        RpcResponse::Err { error } => {
+            panic!("unbound identity completion failed: {}", error.code)
+        }
+    };
+
     let query = federation_query_v2_rpc(FederationQueryV2Req {
         vault_path: root.to_string_lossy().to_string(),
         request: FederationQueryRequestV2 {
@@ -200,14 +237,99 @@ fn rpc_federation_v2_and_lifecycle_mutation_preserve_owner_boundaries() {
             action: DocumentLifecycleActionV1::Tombstone,
             doc_id: format!("blake3:{}", "a".repeat(64)),
             replacement_doc_id: None,
-            subject_id: "unbound-rpc-subject".to_string(),
+            session_id: unbound_session_id,
             reason: "synthetic denied RPC attempt".to_string(),
-            effective_at_ms: 3,
+            effective_at_ms: 5,
         },
     });
     match denied {
         RpcResponse::Err { error } => assert_eq!(error.code, "KC_LINEAGE_PERMISSION_DENIED"),
         RpcResponse::Ok { .. } => panic!("lifecycle mutation must remain deny-by-default"),
+    }
+
+    match lineage_policy_add_rpc(LineagePolicyAddReq {
+        vault_path: root.to_string_lossy().to_string(),
+        name: "allow-document-lifecycle-rpc".to_string(),
+        effect: "allow".to_string(),
+        condition_json: r#"{"action":"document.lifecycle.write"}"#.to_string(),
+        created_by: Some("rpc-test".to_string()),
+        now_ms: 5,
+    }) {
+        RpcResponse::Ok { .. } => {}
+        RpcResponse::Err { error } => panic!("lifecycle policy add failed: {}", error.code),
+    }
+    match lineage_policy_bind_rpc(LineagePolicyBindReq {
+        vault_path: root.to_string_lossy().to_string(),
+        subject: "owner-rpc-subject".to_string(),
+        policy: "allow-document-lifecycle-rpc".to_string(),
+        bound_by: Some("rpc-test".to_string()),
+        now_ms: 6,
+    }) {
+        RpcResponse::Ok { .. } => {}
+        RpcResponse::Err { error } => panic!("lifecycle policy bind failed: {}", error.code),
+    }
+
+    let bytes = b"synthetic lifecycle RPC owner document";
+    let paths = vault_paths(&root);
+    let conn = open_db(&paths.db).expect("open RPC lifecycle vault");
+    let store = ObjectStore::new(paths.objects_dir);
+    let ingested = ingest_bytes(
+        &conn,
+        &store,
+        IngestBytesReq {
+            bytes,
+            mime: "text/plain",
+            source_kind: "rpc-test",
+            effective_ts_ms: 7,
+            source_path: None,
+            now_ms: 7,
+        },
+    )
+    .expect("ingest RPC lifecycle document");
+    let canonical_hash = blake3_hex_prefixed(bytes);
+    persist_canonical_text(
+        &conn,
+        &store,
+        &CanonicalTextArtifact {
+            doc_id: ingested.doc_id.clone(),
+            canonical_bytes: bytes.to_vec(),
+            canonical_hash: CanonicalHash(canonical_hash.clone()),
+            canonical_object_hash: ObjectHash(canonical_hash),
+            extractor_name: "rpc-test".to_string(),
+            extractor_version: "1".to_string(),
+            extractor_flags_json: "{}".to_string(),
+            normalization_version: 1,
+            toolchain_json: "{}".to_string(),
+        },
+        7,
+    )
+    .expect("persist RPC lifecycle canonical text");
+    drop(conn);
+
+    let accepted = document_lifecycle_mutate_rpc(DocumentLifecycleMutateReq {
+        vault_path: root.to_string_lossy().to_string(),
+        request: DocumentLifecycleMutationRequestV1 {
+            schema_version: DOCUMENT_LIFECYCLE_REQUEST_SCHEMA.to_string(),
+            action: DocumentLifecycleActionV1::Tombstone,
+            doc_id: ingested.doc_id.0,
+            replacement_doc_id: None,
+            session_id: owner_session_id,
+            reason: "synthetic accepted RPC lifecycle mutation".to_string(),
+            effective_at_ms: 8,
+        },
+    });
+    match accepted {
+        RpcResponse::Ok { data } => {
+            assert_eq!(data.event.action, DocumentLifecycleActionV1::Tombstone);
+            assert!(data
+                .event
+                .authorization_subject_digest
+                .starts_with("blake3:"));
+            assert!(!serde_json::to_string(&data)
+                .expect("serialize accepted lifecycle RPC result")
+                .contains("owner-rpc-subject"));
+        }
+        RpcResponse::Err { error } => panic!("authorized lifecycle RPC failed: {}", error.code),
     }
 }
 

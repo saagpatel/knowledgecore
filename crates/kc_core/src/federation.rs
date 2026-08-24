@@ -143,7 +143,7 @@ pub struct FederationLifecycleEventRefV2 {
     pub source_canonical_hash: String,
     pub replacement_source_item_id: Option<String>,
     pub replacement_canonical_hash: Option<String>,
-    pub authorized_subject_id: String,
+    pub authorization_subject_digest: String,
     pub reason_digest: String,
 }
 
@@ -490,7 +490,7 @@ fn lifecycle_notice(resolution: DocumentLifecycleResolutionV1) -> FederationLife
                 source_canonical_hash: event.doc_canonical_hash,
                 replacement_source_item_id: event.replacement_doc_id,
                 replacement_canonical_hash: event.replacement_canonical_hash,
-                authorized_subject_id: event.subject_id,
+                authorization_subject_digest: event.authorization_subject_digest,
                 reason_digest: event.reason_digest,
             })
             .collect(),

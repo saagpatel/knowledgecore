@@ -17,6 +17,7 @@ use kc_core::lineage_policy::{lineage_policy_add, lineage_policy_bind};
 use kc_core::object_store::ObjectStore;
 use kc_core::rpc_service::{vault_encryption_enable_service, vault_encryption_migrate_service};
 use kc_core::services::CanonicalTextArtifact;
+use kc_core::trust_identity::{trust_identity_complete, trust_identity_start};
 use kc_core::types::{CanonicalHash, ObjectHash};
 use kc_core::vault::{vault_init, vault_paths};
 
@@ -96,6 +97,13 @@ fn allow_lifecycle(conn: &rusqlite::Connection, subject_id: &str) {
         501,
     )
     .expect("bind lifecycle allow policy");
+}
+
+fn owner_session(conn: &rusqlite::Connection, subject_id: &str, now_ms: i64) -> String {
+    trust_identity_start(conn, "default", now_ms).expect("start owner identity");
+    trust_identity_complete(conn, "default", &format!("sub:{subject_id}"), now_ms + 1)
+        .expect("complete owner identity")
+        .session_id
 }
 
 fn fixture_vault(text: &[u8]) -> (tempfile::TempDir, std::path::PathBuf) {
@@ -287,7 +295,7 @@ fn missing_vault_fails_without_exposing_the_requested_path() {
 #[test]
 fn federation_v2_exposes_correction_and_logical_deletion_without_historical_content() {
     let (_temp, vault_path) = fixture_vault(b"saagpatel/knowledgecore original private phrase");
-    let source_doc_id = {
+    let source_doc_id: String = {
         let conn = open_db(&vault_paths(&vault_path).db).expect("open owner db");
         conn.query_row("SELECT doc_id FROM docs LIMIT 1", [], |row| row.get(0))
             .expect("source document")
@@ -310,6 +318,7 @@ fn federation_v2_exposes_correction_and_logical_deletion_without_historical_cont
     );
     let conn = open_db(&vault_paths(&vault_path).db).expect("open owner db");
     allow_lifecycle(&conn, "owner-subject");
+    let session_id = owner_session(&conn, "owner-subject", 502);
     append_document_lifecycle_event(
         &conn,
         &DocumentLifecycleMutationRequestV1 {
@@ -317,7 +326,7 @@ fn federation_v2_exposes_correction_and_logical_deletion_without_historical_cont
             action: DocumentLifecycleActionV1::Supersede,
             doc_id: source_doc_id.clone(),
             replacement_doc_id: Some(replacement_doc_id.clone()),
-            subject_id: "owner-subject".to_string(),
+            session_id: session_id.clone(),
             reason: "corrected synthetic document".to_string(),
             effective_at_ms: 700,
         },
@@ -340,6 +349,8 @@ fn federation_v2_exposes_correction_and_logical_deletion_without_historical_cont
     let corrected_json = serde_json::to_string(&corrected).expect("serialize corrected result");
     assert!(!corrected_json.contains("original private phrase"));
     assert!(!corrected_json.contains("corrected synthetic document"));
+    assert!(!corrected_json.contains("owner-subject"));
+    assert!(corrected_json.contains("authorization_subject_digest"));
     assert!(corrected_json.contains("corrected public-safe phrase"));
 
     let conn = open_db(&vault_paths(&vault_path).db).expect("open owner db");
@@ -350,7 +361,7 @@ fn federation_v2_exposes_correction_and_logical_deletion_without_historical_cont
             action: DocumentLifecycleActionV1::Tombstone,
             doc_id: replacement_doc_id,
             replacement_doc_id: None,
-            subject_id: "owner-subject".to_string(),
+            session_id,
             reason: "owner logical deletion".to_string(),
             effective_at_ms: 701,
         },
@@ -377,7 +388,7 @@ fn federation_v2_exposes_correction_and_logical_deletion_without_historical_cont
 #[test]
 fn federation_v2_keeps_lifecycle_conflicts_visible_without_a_winner() {
     let (_temp, vault_path) = fixture_vault(b"saagpatel/knowledgecore conflicted source");
-    let source_doc_id = {
+    let source_doc_id: String = {
         let conn = open_db(&vault_paths(&vault_path).db).expect("open owner db");
         conn.query_row("SELECT doc_id FROM docs LIMIT 1", [], |row| row.get(0))
             .expect("source document")

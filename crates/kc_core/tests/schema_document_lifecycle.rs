@@ -18,7 +18,7 @@ fn request_schema() -> serde_json::Value {
         "type": "object",
         "required": [
             "schema_version", "action", "doc_id", "replacement_doc_id",
-            "subject_id", "reason", "effective_at_ms"
+            "session_id", "reason", "effective_at_ms"
         ],
         "properties": {
             "schema_version": { "const": DOCUMENT_LIFECYCLE_REQUEST_SCHEMA },
@@ -27,7 +27,7 @@ fn request_schema() -> serde_json::Value {
             "replacement_doc_id": {
                 "oneOf": [{ "type": "null" }, document_id_schema()]
             },
-            "subject_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+            "session_id": { "type": "string", "format": "uuid" },
             "reason": { "type": "string", "minLength": 1, "maxLength": 240 },
             "effective_at_ms": { "type": "integer", "minimum": 0 }
         },
@@ -93,7 +93,7 @@ fn schema_document_lifecycle_accepts_strict_request_and_event() {
         action: DocumentLifecycleActionV1::Supersede,
         doc_id: hash_a.clone(),
         replacement_doc_id: Some(hash_b.clone()),
-        subject_id: "owner-subject".to_string(),
+        session_id: "4b7a2f0c-e197-4e9d-8d7c-4ce97e7474d2".to_string(),
         reason: "owner correction".to_string(),
         effective_at_ms: 100,
     };
@@ -125,7 +125,7 @@ fn schema_document_lifecycle_rejects_unknown_and_action_inconsistent_fields() {
         "action": "tombstone",
         "doc_id": hash,
         "replacement_doc_id": null,
-        "subject_id": "owner-subject",
+        "session_id": "4b7a2f0c-e197-4e9d-8d7c-4ce97e7474d2",
         "reason": "owner deletion",
         "effective_at_ms": 100,
         "physical_delete": true

@@ -103,7 +103,7 @@ fn result_schema() -> serde_json::Value {
             "initial_state": lifecycle_state,
             "terminal_state": terminal_state,
             "terminal_source_item_id": optional_hash_schema(),
-            "events": { "type": "array", "minItems": 1, "items": event_ref }
+            "events": { "type": "array", "minItems": 1, "maxItems": 100, "items": event_ref }
         },
         "additionalProperties": false
     });
@@ -260,9 +260,32 @@ fn schema_federation_query_v2_accepts_strict_request_and_result() {
             value_digest: format!("blake3:{}", "0".repeat(64)),
         }],
     };
-    assert!(validator_for(&result_schema())
-        .expect("compile result schema")
-        .is_valid(&serde_json::to_value(result).expect("serialize result")));
+    let validator = validator_for(&result_schema()).expect("compile result schema");
+    let mut result_value = serde_json::to_value(&result).expect("serialize result");
+    assert!(validator.is_valid(&result_value));
+
+    let event = {
+        let events = result_value
+            .get_mut("lifecycle_notices")
+            .and_then(serde_json::Value::as_array_mut)
+            .and_then(|notices| notices.first_mut())
+            .and_then(|notice| notice.get_mut("events"))
+            .and_then(serde_json::Value::as_array_mut)
+            .expect("lifecycle events array");
+        let event = events[0].clone();
+        *events = vec![event.clone(); 100];
+        event
+    };
+    assert!(validator.is_valid(&result_value));
+    result_value
+        .get_mut("lifecycle_notices")
+        .and_then(serde_json::Value::as_array_mut)
+        .and_then(|notices| notices.first_mut())
+        .and_then(|notice| notice.get_mut("events"))
+        .and_then(serde_json::Value::as_array_mut)
+        .expect("lifecycle events array")
+        .push(event);
+    assert!(!validator.is_valid(&result_value));
 }
 
 #[test]

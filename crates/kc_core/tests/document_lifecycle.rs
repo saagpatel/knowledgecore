@@ -214,7 +214,10 @@ fn lifecycle_write_is_deny_by_default_and_preserves_canonical_rows() {
         Some(replacement.as_str())
     );
     assert!(event.reason_digest.starts_with("blake3:"));
-    assert!(event.authorization_subject_digest.starts_with("blake3:"));
+    assert_eq!(
+        event.authorization_subject_digest,
+        blake3_hex_prefixed(b"kc.document.lifecycle.authorization-subject.v1\nowner-subject")
+    );
     assert!(!serde_json::to_string(&event)
         .expect("serialize public lifecycle event")
         .contains("owner-subject"));

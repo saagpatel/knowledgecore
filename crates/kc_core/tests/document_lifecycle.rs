@@ -194,7 +194,20 @@ fn lifecycle_write_is_deny_by_default_and_preserves_canonical_rows() {
         ),
     )
     .expect_err("an allowed subject identifier is not an authenticated session");
-    assert_eq!(spoofed.code, "KC_TRUST_IDENTITY_INVALID");
+    assert_eq!(spoofed.code, "KC_DOCUMENT_LIFECYCLE_REQUEST_INVALID");
+
+    let forged_session = append_document_lifecycle_event(
+        &fixture.conn,
+        &request(
+            DocumentLifecycleActionV1::Supersede,
+            source,
+            Some(replacement),
+            "00000000-0000-4000-8000-000000000000",
+            31,
+        ),
+    )
+    .expect_err("a well-formed but unissued session identifier must be denied");
+    assert_eq!(forged_session.code, "KC_TRUST_IDENTITY_INVALID");
 
     let event = append_document_lifecycle_event(
         &fixture.conn,

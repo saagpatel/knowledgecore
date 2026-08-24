@@ -158,12 +158,21 @@ fn encrypted_object_store_without_owner_session_is_typed_locked() {
 fn corrupted_canonical_object_is_typed_corrupt_without_raw_storage_details() {
     let (_temp, vault_path) = fixture_vault(b"saagpatel/knowledgecore private project note");
     let conn = open_db(&vault_paths(&vault_path).db).expect("open owner db");
-    conn.execute(
-        "UPDATE canonical_text SET canonical_object_hash=?1",
-        [format!("blake3:{}", "0".repeat(64))],
-    )
-    .expect("corrupt canonical object reference");
+    let object_hash: String = conn
+        .query_row(
+            "SELECT canonical_object_hash FROM canonical_text LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
+        .expect("load canonical object reference");
     drop(conn);
+    let digest = &object_hash["blake3:".len()..];
+    let object_path = vault_paths(&vault_path)
+        .objects_dir
+        .join(&digest[..2])
+        .join(&object_hash);
+    std::fs::write(&object_path, b"tampered canonical bytes")
+        .expect("corrupt synthetic canonical object bytes");
 
     let result = federation_query_service(&vault_path, &request("saagpatel/knowledgecore", false))
         .expect("typed corrupt result");

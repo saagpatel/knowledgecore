@@ -98,7 +98,14 @@ fn result_schema() -> serde_json::Value {
                       "name": { "type": "string", "minLength": 1 },
                       "version": { "type": "string" },
                       "normalizationVersion": { "type": "integer" },
-                      "toolchain": {}
+                      "toolchain": {
+                        "type": "object",
+                        "required": ["digest"],
+                        "properties": {
+                          "digest": { "type": "string", "pattern": "^blake3:" }
+                        },
+                        "additionalProperties": false
+                      }
                     },
                     "additionalProperties": false
                   },
@@ -169,7 +176,7 @@ fn schema_federation_query_accepts_strict_request_and_result() {
                 "name": "plain-text",
                 "version": "1",
                 "normalizationVersion": 1,
-                "toolchain": {}
+                "toolchain": { "digest": "blake3:toolchain" }
               }
             }),
             value_digest: "blake3:value".to_string(),

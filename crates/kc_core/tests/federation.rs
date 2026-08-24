@@ -67,6 +67,11 @@ fn fixture_vault(text: &[u8]) -> (tempfile::TempDir, std::path::PathBuf) {
 fn federation_query_is_metadata_only_by_default_and_read_only() {
     let (_temp, vault_path) = fixture_vault(b"saagpatel/knowledgecore private project note");
     let conn = open_db(&vault_paths(&vault_path).db).expect("open before");
+    conn.execute(
+        "UPDATE canonical_text SET toolchain_json=?1",
+        [r#"{"localPath":"/synthetic/toolchain","secret":"must-not-leak"}"#],
+    )
+    .expect("set privacy-sensitive toolchain fixture");
     let event_count_before: i64 = conn
         .query_row("SELECT COUNT(*) FROM events", [], |row| row.get(0))
         .expect("event count before");
@@ -91,6 +96,8 @@ fn federation_query_is_metadata_only_by_default_and_read_only() {
     assert!(result.deletion_semantics.contains("unsupported_unknown"));
     let serialized = serde_json::to_string(&result).expect("serialize result");
     assert!(!serialized.contains("/synthetic/project.txt"));
+    assert!(!serialized.contains("/synthetic/toolchain"));
+    assert!(!serialized.contains("must-not-leak"));
     assert!(!serialized.contains(&vault_path.to_string_lossy().to_string()));
 
     let conn = open_db(&vault_paths(&vault_path).db).expect("open after");

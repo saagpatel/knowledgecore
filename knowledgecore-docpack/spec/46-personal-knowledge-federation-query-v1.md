@@ -39,7 +39,7 @@ The result always names KnowledgeCore as owner and exposes:
 - explicit correction and deletion semantics plus uncertainty;
 - bounded facts with document identity, source kind, effective time, ingest
   event identity, canonical hash, extractor identity, normalization version,
-  toolchain metadata, score, and value digest;
+  a digest binding (never the raw toolchain metadata), score, and value digest;
 - at most 240 characters of document content when `include_content=true`.
 
 Source paths, raw documents, export bundles, vault slugs, passphrases, key

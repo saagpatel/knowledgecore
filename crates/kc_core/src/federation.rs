@@ -1,9 +1,8 @@
 use crate::app_error::{AppError, AppResult};
-use crate::canonical::load_canonical_text;
 use crate::db::{db_passphrase_for_vault, open_db_readonly};
-use crate::hashing::blake3_hex_prefixed;
+use crate::hashing::{blake3_hex_prefixed, validate_blake3_prefixed};
 use crate::object_store::ObjectStore;
-use crate::types::DocId;
+use crate::types::ObjectHash;
 use crate::vault::{vault_open, vault_paths, VaultJsonV3};
 use regex::Regex;
 use rusqlite::{Connection, OptionalExtension};
@@ -90,6 +89,7 @@ struct CandidateRow {
     source_kind: String,
     effective_ts_ms: i64,
     ingested_event_id: i64,
+    canonical_object_hash: String,
     canonical_hash: String,
     extractor_name: String,
     extractor_version: String,
@@ -217,7 +217,10 @@ fn public_failure_state(error: &AppError) -> FederationSourceStateV1 {
         }
         "KC_DB_PERMISSION_DENIED" => FederationSourceStateV1::PermissionDenied,
         "KC_DB_SCHEMA_INCOMPATIBLE"
+        | "KC_DB_INTEGRITY_FAILED"
         | "KC_FEDERATION_SOURCE_REVISION_UNAVAILABLE"
+        | "KC_HASH_DECODE_FAILED"
+        | "KC_HASH_INVALID_FORMAT"
         | "KC_INGEST_READ_FAILED"
         | "KC_VAULT_JSON_INVALID"
         | "KC_VAULT_JSON_UNSUPPORTED_VERSION" => FederationSourceStateV1::Corrupt,
@@ -281,12 +284,21 @@ fn run_query(
 ) -> AppResult<FederationQueryResultV1> {
     let conn = open_db_readonly(&vault_path.join(&vault.db.relative_path))?;
     let store = store_for_read(vault, vault_path)?;
-    let revision = source_revision(&conn)?;
+    let snapshot = conn.unchecked_transaction().map_err(|error| {
+        AppError::new(
+            "KC_RETRIEVAL_FAILED",
+            "federation",
+            "failed opening a read-only federation snapshot",
+            false,
+            json!({ "error": error.to_string() }),
+        )
+    })?;
+    let revision = source_revision(&snapshot)?;
     let binding = source_binding(vault, &revision);
-    let mut statement = conn
+    let mut statement = snapshot
         .prepare(
             "SELECT d.doc_id, d.source_kind, d.effective_ts_ms, d.ingested_event_id, \
-                    c.canonical_hash, c.extractor_name, c.extractor_version, \
+                    c.canonical_object_hash, c.canonical_hash, c.extractor_name, c.extractor_version, \
                     c.normalization_version, c.toolchain_json \
              FROM canonical_text AS c \
              JOIN docs AS d ON d.doc_id = c.doc_id \
@@ -309,11 +321,12 @@ fn run_query(
                 source_kind: row.get(1)?,
                 effective_ts_ms: row.get(2)?,
                 ingested_event_id: row.get(3)?,
-                canonical_hash: row.get(4)?,
-                extractor_name: row.get(5)?,
-                extractor_version: row.get(6)?,
-                normalization_version: row.get(7)?,
-                toolchain_json: row.get(8)?,
+                canonical_object_hash: row.get(4)?,
+                canonical_hash: row.get(5)?,
+                extractor_name: row.get(6)?,
+                extractor_version: row.get(7)?,
+                normalization_version: row.get(8)?,
+                toolchain_json: row.get(9)?,
             })
         })
         .map_err(|error| {
@@ -326,24 +339,54 @@ fn run_query(
             )
         })?;
 
+    let candidates = candidates.collect::<Result<Vec<_>, _>>().map_err(|error| {
+        AppError::new(
+            "KC_RETRIEVAL_FAILED",
+            "federation",
+            "failed decoding federation query row",
+            false,
+            json!({ "error": error.to_string() }),
+        )
+    })?;
+    drop(statement);
+    snapshot.commit().map_err(|error| {
+        AppError::new(
+            "KC_RETRIEVAL_FAILED",
+            "federation",
+            "failed closing the read-only federation snapshot",
+            false,
+            json!({ "error": error.to_string() }),
+        )
+    })?;
+
     let needle = request.project_key.to_lowercase();
     let mut facts = Vec::new();
     for candidate in candidates {
-        let candidate = candidate.map_err(|error| {
-            AppError::new(
-                "KC_RETRIEVAL_FAILED",
+        if validate_blake3_prefixed(&candidate.doc_id).is_err()
+            || validate_blake3_prefixed(&candidate.canonical_object_hash).is_err()
+            || validate_blake3_prefixed(&candidate.canonical_hash).is_err()
+            || candidate.canonical_object_hash != candidate.canonical_hash
+        {
+            return Err(AppError::new(
+                "KC_DB_INTEGRITY_FAILED",
                 "federation",
-                "failed decoding federation query row",
+                "canonical document identity is invalid",
                 false,
-                json!({ "error": error.to_string() }),
-            )
-        })?;
-        let text = String::from_utf8(load_canonical_text(
-            &conn,
-            &store,
-            &DocId(candidate.doc_id.clone()),
-        )?)
-        .map_err(|_| {
+                json!({}),
+            ));
+        }
+        let canonical_bytes =
+            store.get_bytes(&ObjectHash(candidate.canonical_object_hash.clone()))?;
+        if blake3_hex_prefixed(&canonical_bytes) != candidate.canonical_hash {
+            return Err(AppError::new(
+                "KC_DB_INTEGRITY_FAILED",
+                "federation",
+                "canonical document content does not match its owner hash",
+                false,
+                json!({}),
+            ));
+        }
+        let text = String::from_utf8(canonical_bytes).map_err(|_| {
             AppError::new(
                 "KC_RETRIEVAL_FAILED",
                 "federation",
@@ -365,8 +408,9 @@ fn run_query(
                 "name": candidate.extractor_name,
                 "version": candidate.extractor_version,
                 "normalizationVersion": candidate.normalization_version,
-                "toolchain": serde_json::from_str::<serde_json::Value>(&candidate.toolchain_json)
-                    .unwrap_or_else(|_| json!({ "state": "unparseable" }))
+                "toolchain": {
+                    "digest": blake3_hex_prefixed(candidate.toolchain_json.as_bytes())
+                }
             }
         });
         if request.include_content {

@@ -16,7 +16,7 @@ kc_cli federation serve <vault_path> \
   [--passphrase-env <owner_selected_environment_variable>]
 ```
 
-The socket parent must already exist and must not be group- or world-writable. The server refuses an existing socket path instead of deleting it, sets the socket mode to `0600`, and removes only the same socket inode during an orderly shutdown. An encrypted vault can be unlocked inside the owner process from the named environment variable; the variable name and value are never part of the query protocol.
+The socket parent must already exist and must not be group- or world-writable. The server refuses an existing socket path instead of deleting it, sets the socket mode to `0600`, and removes only the same socket inode during an orderly shutdown. `SIGINT` and `SIGTERM` request an orderly foreground shutdown; an active connection may take up to its bounded five-second I/O timeout before cleanup. An encrypted vault can be unlocked inside the owner process from the named environment variable; the variable name and value are never part of the query protocol.
 
 Starting, installing, supervising, scheduling, or publishing this process is outside this source contract.
 

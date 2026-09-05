@@ -3,6 +3,7 @@ mod commands {
     pub mod bench;
     pub mod deps;
     pub mod export;
+    pub mod federation;
     pub mod fixtures;
     pub mod gc;
     pub mod index;
@@ -17,9 +18,9 @@ mod verifier;
 
 use clap::Parser;
 use cli::{
-    BenchCmd, Cli, Command, DepsCmd, FixturesCmd, GcCmd, IndexCmd, IngestCmd, LineageCmd,
-    LineageLockCmd, LineageOverlayCmd, LineagePolicyCmd, LineageRoleCmd, SyncCmd, TrustCmd,
-    TrustDeviceCmd, TrustIdentityCmd, TrustPolicyCmd, TrustProviderCmd, VaultCmd,
+    BenchCmd, Cli, Command, DepsCmd, FederationCmd, FixturesCmd, GcCmd, IndexCmd, IngestCmd,
+    LineageCmd, LineageLockCmd, LineageOverlayCmd, LineagePolicyCmd, LineageRoleCmd, SyncCmd,
+    TrustCmd, TrustDeviceCmd, TrustIdentityCmd, TrustPolicyCmd, TrustProviderCmd, VaultCmd,
     VaultDbEncryptCmd, VaultEncryptCmd, VaultRecoveryCmd, VaultRecoveryEscrowCmd,
     VaultRecoveryEscrowProviderCmd,
 };
@@ -391,6 +392,19 @@ fn main() {
                     now_ms,
                 } => commands::lineage::run_lock_status(&vault_path, &doc_id, now_ms),
             },
+        },
+        Command::Federation { cmd } => match cmd {
+            FederationCmd::Serve {
+                vault_path,
+                socket_path,
+                passphrase_env,
+                max_requests,
+            } => commands::federation::run_serve(
+                &vault_path,
+                &socket_path,
+                passphrase_env.as_deref(),
+                max_requests,
+            ),
         },
         Command::Trust { cmd } => match cmd {
             TrustCmd::Identity { cmd } => match cmd {

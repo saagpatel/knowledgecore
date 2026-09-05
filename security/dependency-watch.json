@@ -2,7 +2,7 @@
   "dependencies": [
     { "name": "tauri", "fail_on_update": true, "group": "direct" },
     { "name": "tauri-utils", "fail_on_update": true, "group": "direct" },
-    { "name": "lancedb", "fail_on_update": true, "group": "direct" },
+    { "name": "lancedb", "fail_on_update": false, "group": "direct", "note": "advisory until lancedb 0.38.1: 0.38.0 does not compile with default features (lancedb/lancedb#4096); restore fail_on_update once a fixed release ships" },
     { "name": "lance", "fail_on_update": false, "group": "transitive" },
     { "name": "lance-index", "fail_on_update": false, "group": "transitive" }
   ]

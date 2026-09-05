@@ -9,7 +9,7 @@ aws-config = "1.8"
 aws-sdk-kms = { version = "1.100", default-features = false, features = ["default-https-client", "rt-tokio"] }
 aws-sdk-s3 = { version = "1.115", default-features = false, features = ["default-https-client", "http-1x", "rt-tokio", "sigv4a"] }
 aws-sdk-secretsmanager = { version = "1.100", default-features = false, features = ["default-https-client", "rt-tokio"] }
-argon2 = "0.5"
+argon2 = "0.6"
 blake3.workspace = true
 chacha20poly1305 = "0.11"
 ed25519-dalek = "3.0"

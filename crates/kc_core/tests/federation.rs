@@ -6,10 +6,11 @@ use kc_core::document_lifecycle::{
 };
 use kc_core::events::append_event;
 use kc_core::federation::{
-    federation_query_service, federation_query_service_v2, FederationMatchDispositionV2,
-    FederationQueryRequestV1, FederationQueryRequestV2, FederationSourceStateV1,
-    FEDERATION_QUERY_REQUEST_SCHEMA, FEDERATION_QUERY_REQUEST_SCHEMA_V2,
-    FEDERATION_QUERY_RESULT_SCHEMA, FEDERATION_QUERY_RESULT_SCHEMA_V2,
+    federation_query_service, federation_query_service_v2, federation_query_service_v2_authorized,
+    FederationMatchDispositionV2, FederationQueryRequestV1, FederationQueryRequestV2,
+    FederationSourceStateV1, DOCUMENT_FEDERATION_READ_ACTION, FEDERATION_QUERY_REQUEST_SCHEMA,
+    FEDERATION_QUERY_REQUEST_SCHEMA_V2, FEDERATION_QUERY_RESULT_SCHEMA,
+    FEDERATION_QUERY_RESULT_SCHEMA_V2,
 };
 use kc_core::hashing::blake3_hex_prefixed;
 use kc_core::ingest::{ingest_bytes, IngestBytesReq};
@@ -18,6 +19,7 @@ use kc_core::object_store::ObjectStore;
 use kc_core::rpc_service::{vault_encryption_enable_service, vault_encryption_migrate_service};
 use kc_core::services::CanonicalTextArtifact;
 use kc_core::trust_identity::{trust_identity_complete, trust_identity_start};
+use kc_core::trust_policy::trust_session_revoke;
 use kc_core::types::{CanonicalHash, ObjectHash};
 use kc_core::vault::{vault_init, vault_paths};
 
@@ -97,6 +99,20 @@ fn allow_lifecycle(conn: &rusqlite::Connection, subject_id: &str) {
         501,
     )
     .expect("bind lifecycle allow policy");
+}
+
+fn allow_federation_read(conn: &rusqlite::Connection, subject_id: &str) {
+    lineage_policy_add(
+        conn,
+        "allow-federation-read-test",
+        "allow",
+        &format!(r#"{{"action":"{DOCUMENT_FEDERATION_READ_ACTION}"}}"#),
+        "tests",
+        700,
+    )
+    .expect("add federation read allow policy");
+    lineage_policy_bind(conn, subject_id, "allow-federation-read-test", "tests", 701)
+        .expect("bind federation read allow policy");
 }
 
 fn owner_session(conn: &rusqlite::Connection, subject_id: &str, now_ms: i64) -> String {
@@ -231,6 +247,109 @@ fn encrypted_object_store_without_owner_session_is_typed_locked() {
     assert_eq!(result.state, FederationSourceStateV1::Locked);
     assert!(!result.participated);
     assert!(result.binding.is_none());
+    assert!(result.facts.is_empty());
+    assert!(result
+        .uncertainty
+        .iter()
+        .any(|value| value.contains("unlock remains owned by KnowledgeCore")));
+}
+
+#[test]
+fn delegated_v2_query_requires_current_owner_session_and_bound_read_policy() {
+    let (_temp, vault_path) =
+        fixture_vault(b"saagpatel/knowledgecore delegated private project note");
+    let conn = open_db(&vault_paths(&vault_path).db).expect("open owner db");
+    let allowed_session = owner_session(&conn, "allowed-reader", 800);
+    allow_federation_read(&conn, "allowed-reader");
+    let unbound_session = owner_session(&conn, "unbound-reader", 810);
+    drop(conn);
+
+    let allowed = federation_query_service_v2_authorized(
+        &vault_path,
+        &allowed_session,
+        1_000,
+        &request_v2("saagpatel/knowledgecore", true),
+    )
+    .expect("allowed delegated query");
+    assert_eq!(allowed.state, FederationSourceStateV1::Ready);
+    assert!(allowed.participated);
+    assert_eq!(allowed.access_mode, "delegated_local_unix_session");
+    assert!(allowed
+        .trust_semantics
+        .contains("authorization_state=allowed"));
+    assert_eq!(allowed.facts.len(), 1);
+    let allowed_json = serde_json::to_string(&allowed).expect("serialize allowed result");
+    assert!(!allowed_json.contains(&allowed_session));
+    assert!(!allowed_json.contains("allowed-reader"));
+    assert!(!allowed_json.contains(&vault_path.to_string_lossy().to_string()));
+
+    let denied = federation_query_service_v2_authorized(
+        &vault_path,
+        &unbound_session,
+        1_000,
+        &request_v2("saagpatel/knowledgecore", true),
+    )
+    .expect("typed unbound denial");
+    assert_eq!(denied.state, FederationSourceStateV1::PermissionDenied);
+    assert!(!denied.participated);
+    assert!(denied.facts.is_empty());
+    assert!(denied.lifecycle_notices.is_empty());
+    let denied_json = serde_json::to_string(&denied).expect("serialize denied result");
+    assert!(!denied_json.contains(&unbound_session));
+    assert!(!denied_json.contains("unbound-reader"));
+}
+
+#[test]
+fn delegated_v2_query_denies_revoked_and_expired_sessions_without_leaking_identity() {
+    let (_temp, vault_path) = fixture_vault(b"saagpatel/knowledgecore delegated owner note");
+    let conn = open_db(&vault_paths(&vault_path).db).expect("open owner db");
+    let revoked_session = owner_session(&conn, "revoked-reader", 800);
+    allow_federation_read(&conn, "revoked-reader");
+    trust_session_revoke(&conn, &revoked_session, "tests", 900).expect("revoke session");
+    let expired_session = owner_session(&conn, "expired-reader", 1);
+    allow_federation_read(&conn, "expired-reader");
+    drop(conn);
+
+    for (session_id, now_ms, forbidden) in [
+        (revoked_session.as_str(), 1_000, "revoked-reader"),
+        (expired_session.as_str(), 4_000_000, "expired-reader"),
+    ] {
+        let result = federation_query_service_v2_authorized(
+            &vault_path,
+            session_id,
+            now_ms,
+            &request_v2("saagpatel/knowledgecore", false),
+        )
+        .expect("typed session denial");
+        assert_eq!(result.state, FederationSourceStateV1::PermissionDenied);
+        assert!(!result.participated);
+        let serialized = serde_json::to_string(&result).expect("serialize denial");
+        assert!(!serialized.contains(session_id));
+        assert!(!serialized.contains(forbidden));
+    }
+}
+
+#[test]
+fn delegated_v2_query_preserves_locked_owner_boundary_after_authorization() {
+    let (_temp, vault_path) = fixture_vault(b"saagpatel/knowledgecore encrypted delegated note");
+    let conn = open_db(&vault_paths(&vault_path).db).expect("open owner db");
+    let session_id = owner_session(&conn, "allowed-reader", 800);
+    allow_federation_read(&conn, "allowed-reader");
+    drop(conn);
+    vault_encryption_enable_service(&vault_path, "synthetic-passphrase")
+        .expect("enable object encryption");
+    vault_encryption_migrate_service(&vault_path, "synthetic-passphrase", 900)
+        .expect("migrate object encryption");
+
+    let result = federation_query_service_v2_authorized(
+        &vault_path,
+        &session_id,
+        1_000,
+        &request_v2("saagpatel/knowledgecore", false),
+    )
+    .expect("typed delegated locked result");
+    assert_eq!(result.state, FederationSourceStateV1::Locked);
+    assert!(!result.participated);
     assert!(result.facts.is_empty());
     assert!(result
         .uncertainty

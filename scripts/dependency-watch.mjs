@@ -231,8 +231,19 @@ async function main() {
     }
 
     const isOutdated = compare > 0;
-    const shouldFail = Boolean(dep.fail_on_update) && isOutdated && !noFail;
-    const outcome = isOutdated ? (shouldFail ? "outdated-fail" : "outdated-warn") : "up-to-date";
+    // A waiver is bound to specific upstream releases: it only applies while the
+    // latest published version is one of the listed ones, so it expires on its
+    // own the moment a newer release appears.
+    const waivedVersions = Array.isArray(dep.waive_latest_versions) ? dep.waive_latest_versions : [];
+    const isWaived = isOutdated && waivedVersions.includes(latestVersion);
+    const shouldFail = Boolean(dep.fail_on_update) && isOutdated && !isWaived && !noFail;
+    const outcome = !isOutdated
+      ? "up-to-date"
+      : shouldFail
+        ? "outdated-fail"
+        : isWaived
+          ? "outdated-waived"
+          : "outdated-warn";
 
     if (shouldFail) {
       failures.push(

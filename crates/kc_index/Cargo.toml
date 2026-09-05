@@ -7,7 +7,10 @@ license.workspace = true
 [dependencies]
 futures = "0.3"
 kc_core = { path = "../kc_core" }
-lancedb = "0.37.1"
+# "remote" is a workaround: lancedb 0.38.0 references Error::Http unconditionally in
+# job.rs while the variant is remote-gated, so the crate does not compile with default
+# features. Drop the feature once lancedb/lancedb#4096 ships in a release.
+lancedb = { version = "0.38.0", features = ["remote"] }
 rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true

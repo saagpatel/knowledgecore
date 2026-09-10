@@ -59,24 +59,6 @@ pub enum Command {
         #[command(subcommand)]
         cmd: LineageCmd,
     },
-    Federation {
-        #[command(subcommand)]
-        cmd: FederationCmd,
-    },
-}
-
-#[derive(Subcommand)]
-pub enum FederationCmd {
-    /// Run a foreground, owner-bound local V2 query broker.
-    Serve {
-        vault_path: String,
-        #[arg(long = "socket-path")]
-        socket_path: String,
-        #[arg(long = "passphrase-env")]
-        passphrase_env: Option<String>,
-        #[arg(long = "max-requests", hide = true)]
-        max_requests: Option<usize>,
-    },
 }
 
 #[derive(Subcommand)]

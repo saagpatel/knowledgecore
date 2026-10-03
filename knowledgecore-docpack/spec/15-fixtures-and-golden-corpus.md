@@ -21,5 +21,5 @@ Golden corpus v1 definition and snapshot expectations.
 ## Commands
 Run from the repository root after building the CLI in release mode.
 - generate: `./target/release/kc_cli fixtures generate --corpus v1`
-- verify: `cargo test -p kc_core -p kc_extract -- golden`; index tests: `cargo test -p kc_index --test fts --test vector`; verifier tests: `cargo test -p kc_cli --test verifier`
-- Target (not yet present): `golden` tests in `kc_index` and `kc_cli`.
+- Component checks: `cargo test -p kc_core -p kc_extract -- golden`; index tests: `cargo test -p kc_index --test fts --test vector`; verifier tests: `cargo test -p kc_cli --test verifier`. These tests use inline synthetic inputs or temporary rows/bundles and do not read the checked-in corpus.
+- Known gap: corpus-backed snapshot/integration tests for the expected canonical text, chunks, retrieval order, export manifest, and verifier report are not present. The component checks above cannot detect corpus drift and do not satisfy the golden corpus acceptance requirement.

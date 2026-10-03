@@ -48,12 +48,12 @@ If any gate fails:
 ## Golden fixtures workflow
 - Fixtures location: repository-root `fixtures/golden_corpus/v1/` (see spec/15).
 - Golden generation command: `./target/release/kc_cli fixtures generate --corpus v1`
-- Golden and related verification commands (from the repository root; Cargo filters are substrings):
+- Component verification commands (from the repository root; Cargo filters are substrings). These use inline synthetic inputs or temporary rows/bundles, not the checked-in golden corpus:
   - `cargo test -p kc_core -- golden`
   - `cargo test -p kc_extract -- golden`
   - `cargo test -p kc_index --test fts --test vector`
   - `cargo test -p kc_cli --test verifier`
-- Target (not yet present): `golden` tests in `kc_index` and `kc_cli`.
+- Known gap: corpus-backed snapshot/integration tests for canonical text, chunks, retrieval order, export manifests, and verifier reports are not present. Component checks do not satisfy the golden corpus acceptance requirement above.
 
 ## Forbidden patterns (hard no)
 - UI parsing/manipulating locators beyond display formatting.

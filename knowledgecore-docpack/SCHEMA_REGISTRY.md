@@ -10,6 +10,7 @@ Authoritative registry of all versioned schemas and contracts. Any schema additi
 
 ## Acceptance Tests
 - Schema validation tests exist and run in CI for each schema category.
+- Known gap: `apps_desktop_tauri` RPC schema tests (`rpc_`, `rpc_schema_`) are excluded from the Rust CI lane (.github/workflows/ci.yml).
 - Registry stays consistent with `spec/*` and `apps/desktop` types.
 
 ## Registry Table
@@ -30,8 +31,8 @@ Authoritative registry of all versioned schemas and contracts. Any schema additi
 | Device trust manifest | 1 | `spec/35-device-trust-manual-verify-v1.md` | kc_core | kc_cli/src-tauri/ui | 1-adj | ed25519 device identity; deterministic fingerprint formatting and trust event ordering; unverified devices cannot author accepted remote heads | additive optional metadata fields ok | bump on fingerprint/signature payload semantics |
 | Trust identity/session | 2 | `spec/39-managed-identity-oidc-device-cert-v1.md` + `spec/42-trust-provider-governance-v1.md` + `spec/43-identity-session-policy-v2.md` | kc_core | kc_cli/src-tauri/ui | 1-adj | deterministic OIDC claim subset canonical JSON; provider lifecycle ordering (`provider_id` lexicographic) including deterministic issuer discovery IDs; deterministic tenant-template policy canonicalization (`aud`,`iss`,`tenant` keys); deterministic policy claim ordering (`claim_key`,`claim_value`); deterministic session selection ordering (`created_at_ms`, `session_id`) with revocation precedence; deterministic certificate chain hash derivation (`cert_id`, `device_id`, `fingerprint`) | read v1 + v2 during migration window; emit v2 when provider governance/session policy tables are active | bump on claim subset normalization, discovery ID derivation, provider/policy evaluation order, session selection precedence, or chain-hash derivation semantics |
 | Recovery bundle manifest | 2 | `spec/36-local-recovery-kit-v1.md` | kc_core | kc_cli/src-tauri/ui | 1-adj | deterministic `recovery_manifest.json` canonical bytes with checksum + payload hash; optional deterministic `escrow` descriptor block (`provider`,`provider_ref`,`key_id`,`wrapped_at_ms`) and optional `escrow_descriptors[]` extension for multi-provider reporting | read v1 + v2 during migration window; emit v2 on new writes | bump on checksum/payload derivation semantics or escrow descriptor semantics |
-| Lineage query | 2 | `spec/34-lineage-overlays-v1.md` | kc_core | kc_cli/src-tauri/ui | 1 | deterministic nodes (`kind`,`node_id`) and edges (`from`,`to`,`relation`,`evidence`,`origin`) ordering; v2 merges immutable system edges with overlay edges deterministically | v1 read-only response remains supported during transition | bump on request/response semantics or ordering rule change |
-| Lineage overlay entry | 1 | `spec/34-lineage-overlays-v1.md` | kc_core | kc_cli/src-tauri/ui | 1-adj | overlay_id deterministic hash identity; uniqueness on `(doc_id,from,to,relation,evidence)`; immutable system lineage untouched | additive optional metadata fields ok | bump on identity or ordering semantics change |
+| Lineage query | 2 | `spec/34-lineage-overlays-v1.md` | kc_core | kc_cli/src-tauri/ui | 1 | deterministic nodes (`kind`,`node_id`) and edges (`from_node_id`,`to_node_id`,`relation`,`evidence`,`origin`) ordering; v2 merges immutable system edges with overlay edges deterministically | v1 read-only response remains supported during transition | bump on request/response semantics or ordering rule change |
+| Lineage overlay entry | 1 | `spec/34-lineage-overlays-v1.md` | kc_core | kc_cli/src-tauri/ui | 1-adj | overlay_id deterministic hash identity; uniqueness on `(doc_id,from_node_id,to_node_id,relation,evidence)`; immutable system lineage untouched | additive optional metadata fields ok | bump on identity or ordering semantics change |
 | Lineage governance (roles + locks + policy conditions) | 4 | `spec/41-lineage-governance-rbac-v2.md` + `spec/38-lineage-collab-turn-lock-v1.md` + `spec/45-lineage-governance-conditions-v3.md` | kc_core | kc_cli/src-tauri/ui | 1-adj | deterministic RBAC precedence by `role_rank,subject_id,role_name`; overlay mutation requires lock + RBAC allow + policy-condition allow; policy evaluation deny-default with explicit deny override and deterministic tie-break (`priority`,`policy_id`,`subject_id`); v4 condition DSL adds deterministic optional keys `doc_id_suffix` and `subject_id_prefix` in addition to `action` + `doc_id_prefix`; deterministic audit details canonical JSON and deterministic audit ordering (`ts_ms`,`audit_id`); scoped lock schemas support `scope_kind` in `{doc,set}` with deterministic token/status serialization | read v1 + v2 + v3 governance artifacts during transition; emit v4 policy-condition artifacts on new/updated policy writes | bump on role/policy precedence, permission semantics, condition key semantics, audit ordering, scope enum, or lock/token derivation |
 | Verifier report | 1 | `spec/13-verifier-and-reporting.md` | kc_cli | UI/automation | 1 | stable exit codes (0/20/21/31/40/41/60); deterministic ordering; schema-validated manifest input; object encryption-state mismatches map into code 41 and DB encryption-state mismatches map into code 31 | additive ok | bump on exit/order/schema rule change |
 | AppError | 1 | `spec/14-error-contract-app-error-taxonomy.md` | all | UI/CLI/RPC | 1-adj | UI branches on code only | additive codes ok | bump on struct change |
@@ -49,12 +50,12 @@ Authoritative registry of all versioned schemas and contracts. Any schema additi
 
 ## Schema validation workflow
 - JSON schema validation tests (Rust `jsonschema` crate):
-  - `cargo test -p kc_core -- schema_*`
-  - `cargo test -p kc_cli -- schema_*`
+  - `cargo test -p kc_core -- schema_`
+  - `cargo test -p kc_cli -- schema_`
 - RPC round-trip serialization tests:
-  - `cargo test -p apps_desktop_tauri -- rpc_*`
+  - `cargo test -p apps_desktop_tauri -- rpc_`
   - Deterministic RPC request schema tests:
-    - `cargo test -p apps_desktop_tauri -- rpc_schema_*`
+    - `cargo test -p apps_desktop_tauri -- rpc_schema_`
 
 ## Assumption
-- Formal JSON Schemas are embedded in spec files and mirrored into Rust tests as literals to validate at build time.
+- Formal JSON Schemas are embedded in spec files and mirrored into Rust tests as literals to validate during tests; RPC request shape tests use Serde deserialization.

@@ -20,7 +20,7 @@ KnowledgeCore is a local-first, encrypted knowledge vault for ingesting, indexin
 ### Prerequisites
 - Rust 1.77+ (2021 edition)
 - Cargo
-- Node.js 18+ and pnpm (desktop app only)
+- Node.js 24.x and pnpm (desktop app only; matches the UI CI runtime)
 
 ### Installation
 ```bash

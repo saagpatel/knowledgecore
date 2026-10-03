@@ -10,7 +10,7 @@ Defines Canonical JSON v1 encoding used for hashing configuration objects, polic
 - Hash: BLAKE3(canonical_json_bytes).
 
 ## Acceptance Tests
-- Golden vector tests validate canonical bytes and hashes.
+- Golden vector tests validate canonical bytes; separate tests check hash stability.
 - Float rejection tests return `KC_CANON_JSON_FLOAT_FORBIDDEN`.
 
 ## Algorithm (v1)

@@ -2,18 +2,18 @@
 
 [![Rust](https://img.shields.io/badge/Rust-dea584?style=flat-square&logo=rust)](#) [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](#)
 
-> Your documents, encrypted and semantically searchable — no cloud, no accounts, no compromise.
+> Your documents, locally searchable with opt-in encryption — no cloud, no accounts, no compromise.
 
-KnowledgeCore is a local-first, encrypted knowledge vault for ingesting, indexing, and querying documents. Documents are stored in an encrypted SQLite vault (SQLCipher), content-addressed with BLAKE3 hashes, and indexed with LanceDB for semantic retrieval. A trust and lineage layer tracks document provenance, authorship, and policy governance across devices.
+KnowledgeCore is a local-first knowledge vault for ingesting, indexing, and querying documents. Document content is stored in a BLAKE3-addressed object store with optional XChaCha20-Poly1305 encryption; metadata is stored in SQLite with optional SQLCipher encryption. CLI index rebuild uses LanceDB with deterministic byte-histogram embeddings and SQLite FTS5; desktop search uses case-insensitive substring matching. A trust and lineage layer tracks document provenance, authorship, and policy governance across devices.
 
 ## Features
 
-- **Encrypted vault** — SQLCipher-backed storage with Argon2 key derivation and ChaCha20-Poly1305 encryption
-- **Semantic search** — LanceDB vector index with Apache Arrow for fast similarity queries
+- **Encrypted vault** — opt-in SQLCipher database encryption with PBKDF2-HMAC-SHA512, and XChaCha20-Poly1305 object encryption with Argon2id key derivation
+- **Vector index** — LanceDB with Apache Arrow; CLI rebuild uses deterministic byte-histogram embeddings
 - **Content addressing** — BLAKE3 hashes ensure integrity and deduplication
 - **PDF extraction** — pdfium-render for high-fidelity document parsing
-- **CLI + desktop** — full-featured `kc_cli` plus a Tauri 2 desktop app covering the same workflow
-- **Recovery escrow** — AWS KMS backend (real SDK); Azure, GCP, and HSM adapters use local filesystem emulation only (no cloud SDK)
+- **CLI + desktop** — `kc_cli` plus a Tauri 2 desktop app sharing Rust core services
+- **Recovery escrow** — AWS, Azure, GCP, and HSM adapters use local filesystem emulation only; AWS SDK dependencies are present, but live AWS calls are not implemented
 
 ## Quick Start
 
@@ -24,7 +24,7 @@ KnowledgeCore is a local-first, encrypted knowledge vault for ingesting, indexin
 
 For safe contributor checks, focused tests, and desktop-specific constraints,
 see [CONTRIBUTING.md](CONTRIBUTING.md#verification). Use disposable fixture data
-for verification; the scan-folder example below reads your Documents directory.
+for verification; the scan-folder example below reads the checked-in golden corpus.
 
 ### Installation
 ```bash
@@ -34,14 +34,14 @@ cargo build --locked --release -p kc_cli
 ### Usage
 ```bash
 # Initialize a new vault
-./target/release/kc_cli vault init --vault-path ./my-vault --vault-slug my-vault
+./target/release/kc_cli vault init ./my-vault my-vault
 
 # Ingest documents
 ./target/release/kc_cli ingest scan-folder \
-  --vault-path ./my-vault --scan-root ~/Documents --source-kind local
+  ./my-vault ./fixtures/golden_corpus/v1 local
 
-# Rebuild the semantic index
-./target/release/kc_cli index rebuild --vault-path ./my-vault
+# Rebuild the vector and full-text indexes
+./target/release/kc_cli index rebuild ./my-vault
 ```
 
 ## Tech Stack
@@ -50,7 +50,7 @@ cargo build --locked --release -p kc_cli
 |-------|------------|
 | Language | Rust (2021 edition) |
 | Vault storage | SQLCipher (rusqlite + bundled) |
-| Encryption | ChaCha20-Poly1305, Argon2, BLAKE3 |
+| Encryption | XChaCha20-Poly1305, Argon2id (objects); SQLCipher PBKDF2-HMAC-SHA512 (database); BLAKE3 hashing |
 | Vector index | LanceDB + Apache Arrow |
 | PDF parsing | pdfium-render |
 | Identity | Ed25519 (ed25519-dalek), JWK/JWKS |

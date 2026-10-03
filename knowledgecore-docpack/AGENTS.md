@@ -4,7 +4,7 @@
 Authoritative operating contract for all agentic implementation work (Codex) for KnowledgeCore Desktop. Encodes non-negotiable boundaries, determinism tiers, verification gates, schema governance, and golden fixture workflow.
 
 ## Invariants
-- **No business logic in UI.** React UI may render state and trigger actions only. It must not implement ranking, merge logic, chunking, locator resolution, export ordering, verifier logic, or any policy affecting correctness.
+- **No business logic in UI.** TypeScript UI may render state and trigger actions only. It must not implement ranking, merge logic, chunking, locator resolution, export ordering, verifier logic, or any policy affecting correctness.
 - **Tauri RPC is thin orchestration only.** `apps/desktop/src-tauri/` wires typed requests to Rust core APIs and returns typed responses. No truth-layer rules live here.
 - **UI routes by `AppError.code` only.** UI must never branch on `message` substrings.
 - **Determinism tiers apply to all work:**
@@ -15,13 +15,14 @@ Authoritative operating contract for all agentic implementation work (Codex) for
 - **Schema governance:** any schema creation/change requires updating `SCHEMA_REGISTRY.md` and adding schema validation tests.
 
 ## Acceptance Tests
-- All verification commands pass:
+- All verification commands pass (run from the repository root):
   - `cargo test -p kc_core -p kc_extract -p kc_index -p kc_ask -p kc_cli`
   - `pnpm lint && pnpm test && pnpm tauri build`
 - Golden corpus tests pass (see `spec/15-fixtures-and-golden-corpus.md`).
 - Determinism tests pass for Tier 1 outputs: stable IDs, stable ordering, stable manifest ordering, stable verifier report ordering.
 
 ## Commands (gates)
+Run from the repository root.
 - Rust: `cargo test -p kc_core -p kc_extract -p kc_index -p kc_ask -p kc_cli`
 - Desktop: `pnpm lint && pnpm test && pnpm tauri build`
 
@@ -45,13 +46,14 @@ If any gate fails:
 - Golden corpus: `spec/15-fixtures-and-golden-corpus.md`
 
 ## Golden fixtures workflow
-- Fixtures location: `fixtures/golden_corpus/v1/` (see spec/15).
-- Golden generation command (must exist in CLI by Milestone D/E): `kc_cli fixtures generate --corpus v1`
-- Golden verification commands (final form):
-  - `cargo test -p kc_core -- golden_*`
-  - `cargo test -p kc_extract -- golden_*`
-  - `cargo test -p kc_index -- golden_*`
-  - `cargo test -p kc_cli -- golden_*`
+- Fixtures location: repository-root `fixtures/golden_corpus/v1/` (see spec/15).
+- Golden generation command: `./target/release/kc_cli fixtures generate --corpus v1`
+- Component verification commands (from the repository root; Cargo filters are substrings). These use inline synthetic inputs or temporary rows/bundles, not the checked-in golden corpus:
+  - `cargo test -p kc_core -- golden`
+  - `cargo test -p kc_extract -- golden`
+  - `cargo test -p kc_index --test fts --test vector`
+  - `cargo test -p kc_cli --test verifier`
+- Known gap: corpus-backed snapshot/integration tests for canonical text, chunks, retrieval order, export manifests, and verifier reports are not present. Component checks do not satisfy the golden corpus acceptance requirement above.
 
 ## Forbidden patterns (hard no)
 - UI parsing/manipulating locators beyond display formatting.

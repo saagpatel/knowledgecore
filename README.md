@@ -18,13 +18,17 @@ KnowledgeCore is a local-first, encrypted knowledge vault for ingesting, indexin
 ## Quick Start
 
 ### Prerequisites
-- Rust 1.77+ (2021 edition)
-- Cargo
+- Current stable Rust and Cargo (the Rust CI lane uses `stable`; 2021 edition)
+- Protobuf compiler (`protoc`) for the Rust dependency build; CI installs `protobuf-compiler`
 - Node.js 24.x and pnpm (desktop app only; matches the UI CI runtime)
+
+For safe contributor checks, focused tests, and desktop-specific constraints,
+see [CONTRIBUTING.md](CONTRIBUTING.md#verification). Use disposable fixture data
+for verification; the scan-folder example below reads your Documents directory.
 
 ### Installation
 ```bash
-cargo build --release -p kc_cli
+cargo build --locked --release -p kc_cli
 ```
 
 ### Usage

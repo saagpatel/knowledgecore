@@ -33,6 +33,59 @@ impl Embedder for DummyEmbedder {
 }
 
 #[test]
+fn vector_relative_db_prefix_stays_local_across_reopen() {
+    const CHILD_MARKER: &str = "KC_VECTOR_LOCAL_PATH_TEST_CHILD";
+    if std::env::var_os(CHILD_MARKER).is_none() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let output = std::process::Command::new(std::env::current_exe().expect("test executable"))
+            .args([
+                "--exact",
+                "vector_relative_db_prefix_stays_local_across_reopen",
+                "--nocapture",
+            ])
+            .env(CHILD_MARKER, "1")
+            .current_dir(dir.path())
+            .output()
+            .expect("run local path test in isolated working directory");
+        assert!(
+            output.status.success(),
+            "child failed: {}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(dir
+            .path()
+            .join("db-local-index/embedding_identity.json")
+            .is_file());
+        return;
+    }
+
+    let db_path = "db-local-index";
+    let mut index = LanceDbVectorIndex::open(DummyEmbedder, db_path).expect("open local index");
+    index
+        .upsert_rows(vec![VectorRow {
+            chunk_id: ChunkId("local-c1".to_string()),
+            doc_id: DocId("local-d1".to_string()),
+            ordinal: 0,
+            text: "alpha local text".to_string(),
+            vector: vec![1.0, 0.0],
+        }])
+        .expect("persist local rows");
+    assert_eq!(
+        index.query("alpha", 1).expect("query")[0].chunk_id.0,
+        "local-c1"
+    );
+    drop(index);
+    let reopened = LanceDbVectorIndex::open(DummyEmbedder, db_path).expect("reopen local index");
+    assert_eq!(
+        reopened.query("alpha", 1).expect("query reopened")[0]
+            .chunk_id
+            .0,
+        "local-c1"
+    );
+}
+
+#[test]
 fn vector_query_returns_ranked_hits() {
     let db_path = tempfile::tempdir()
         .expect("tempdir")

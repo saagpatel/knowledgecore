@@ -1,24 +1,24 @@
 {
   "metadata": {
     "owner": "engineering",
-    "updated_on": "2026-10-03",
+    "updated_on": "2026-10-04",
     "max_review_window_days": 45
   },
   "allow": [
     {
       "id": "RUSTSEC-2024-0436",
-      "review_by": "2026-09-25",
-      "reason": "transitive macro dependency; replace during toolchain refresh."
+      "review_by": "2026-11-15",
+      "reason": "paste is a compile-time macro pulled in by lance-bitpacking 12.0.0 and arrow-flight via lancedb 0.39.0, both latest; drop once lance removes it."
     },
     {
       "id": "RUSTSEC-2024-0370",
-      "review_by": "2026-09-25",
-      "reason": "transitive macro dependency; replace during toolchain refresh."
+      "review_by": "2026-11-15",
+      "reason": "proc-macro-error is a compile-time macro in the Tauri 2 Linux GTK3 stack; no stable Tauri release removes it yet."
     },
     {
       "id": "RUSTSEC-2024-0429",
-      "review_by": "2026-09-25",
-      "reason": "unsound glib in gtk3 transitives; prioritize tauri/linux backend migration."
+      "review_by": "2026-11-15",
+      "reason": "unsound glib in Tauri 2 Linux GTK3 transitives; only Tauri 3 (alpha) migrates off gtk3. Linux desktop only."
     }
   ]
 }

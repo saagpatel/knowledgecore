@@ -98,6 +98,18 @@ impl<E: Embedder> LanceDbVectorIndex<E> {
             )
         })?;
 
+        // Always pass a local absolute path: LanceDB also treats relative names
+        // beginning with `db` as remote database identifiers.
+        let db_root = std::fs::canonicalize(&db_root).map_err(|e| {
+            AppError::new(
+                "KC_VECTOR_INDEX_INIT_FAILED",
+                "vector",
+                "failed resolving local lancedb root directory",
+                false,
+                serde_json::json!({ "error": e.to_string(), "path": db_root }),
+            )
+        })?;
+
         let mut instance = Self {
             embedder,
             db_root,

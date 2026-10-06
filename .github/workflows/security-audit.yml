@@ -9,18 +9,24 @@ on:
     - cron: "0 14 * * 1"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   rustsec-policy:
     name: RustSec Policy Gate
+    permissions:
+      contents: read
+      pull-requests: read
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Detect Rust dependency changes
         id: changes
         if: github.event_name == 'pull_request'
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
           filters: |
             rust:
@@ -36,17 +42,17 @@ jobs:
 
       - name: Setup Rust
         if: github.event_name != 'pull_request' || steps.changes.outputs.rust == 'true'
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable as of 2026-10-05 PT
 
       - name: Install cargo-audit
         if: github.event_name != 'pull_request' || steps.changes.outputs.rust == 'true'
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@183e4297cca2404691e9380e1307288dced5c82a # v2.87.25
         with:
           tool: cargo-audit
 
       - name: Setup Node
         if: github.event_name != 'pull_request' || steps.changes.outputs.rust == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "20"
 
@@ -69,21 +75,23 @@ jobs:
   dependency-sweep:
     name: Weekly Dependency Sweep
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable as of 2026-10-05 PT
 
       - name: Install cargo-audit
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@183e4297cca2404691e9380e1307288dced5c82a # v2.87.25
         with:
           tool: cargo-audit
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "20"
 
